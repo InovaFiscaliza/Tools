@@ -19,8 +19,8 @@ This is a set of scripts that perform file p
 | Script module | Description |
 | --- | --- |
 | [name_paths.ps1](./src/name_path.ps1) | Change file names to include prefix according to folder structure. Used tho harmonize names with the ones used for tiling. e.g. file .\map\df\map.tif becomes .\map\df\df_map.tif |
-| [sort_files.ps1](./src/sort_files.ps1) | |
-| [remove_empty_folders.ps1](./src/remove_empty_folders.ps1) | |
+| [sort_files.ps1](./src/sort_files.ps1) | Organize files into foldes according to naming templates |
+| [remove_empty_folders.ps1](./src/remove_empty_folders.ps1) | Remove empty folders from file three |
 | [check_files.py](./src/check_files.py) | Check if all files are present in the folder structure. Used to check if all files are present before tiling |
 | [degree_tile_split.py](./src/degree_tile_split.py) | Split a set of source geotiff files containing regions of no data values, e.g. valid data only within a state political boundry, into a set of regular tiles spawning the complete dataset, e.g convert multiple state maps into a national map tile grid  |
 | [get_nodata_value.py](./src/get_nodata_value.py) | get the value used to represent no data in a geotiff |
