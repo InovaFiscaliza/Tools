@@ -34,123 +34,124 @@ classdef openDEM < handle
     end
 
     methods (Access = private)
-        function obj = clean_file_names(obj)
+        function clean_name = clean_file_names(dirty_name)
             %CLEAN_FILE_NAMES Remove unwanted path from tile file names
             %   Tiles are supposed to be stored in the same directory of the json index. The path to the directory is not needed in the obj.tile_index va
-            for i = 1:length(obj.tile_index)
-                obj.tile_index{i} = strrep(obj.tile_index{i},'\','/');
-                
+            
+            % find the position of the last slash or backslash in the string
+            lastdot_pos = find(dirty_name == '\', 1, 'last');
+            if isempty(lastdot_pos)
+                lastdot_pos = find(dirty_name == '/', 1, 'last');
+                if isempty(lastdot_pos)
+                    clean_name = dirty_name;
+                end
             end
+            clean_name = dirty_name(lastdot_pos + 1 : end);
         end
+
         
-        function tilename = get_tile_name(obj,lat,lon)
-            %GET_TILE_NAME Summary of this method goes here
-            %   Detailed explanation goes here
-                        % define the hemisfere according to the latitude signal of the minimum latitude
-            if latlim(1) < 0
+        function tile_filename = get_tile_name(obj,lat,lon)
+            %GET_TILE_NAME Get the name of the tile that has the reference in a given latitude and longitude
+            %   latitude and longitude must be integers that represente the left bottom corner of the tile (minimum latitude and longitude)
+
+            % compose a string in the format "PhDDMhEEE", where Ph is the hemisphere, DD is the integer part of the latitude, M is the hemisphere of the meridian, EE is the integer part of the longitude
+            if lat < 0
                 parallel_hemisphere = "S";
             else
                 parallel_hemisphere = "N";
             end
 
-            % define the meridian according to the longitude signal of the minimum longitude
-            if lonlim(1) < 0
+            if lon < 0
                 meridian_hemisphere = "W";
             else
                 meridian_hemisphere = "E";
             end
 
-            % compose a string in the format "PhDDMhEEE", where Ph is the hemisphere, DD is the integer part of the latitude, M is the hemisphere of the meridian, EE is the integer part of the longitude
-            tile_name_segment = sprintf("%s%02d%s%03d",parallel_hemisphere,floor(latlim(2)),meridian_hemisphere,floor(lonlim(1)));
+            tile_name_segment = sprintf("%s%02d%s%03d",parallel_hemisphere,lat,meridian_hemisphere,lon);
 
-            tile_matching = cellfun( @(x) contains(x,tile_name_segment), tile_file_names );
-            tilename = find(tile_matching, 1 );
+            % search for the tile name in the tile index and return the full name
+            tile_matching = cellfun( @(x) contains(x,tile_name_segment), obj.tile_index );
+            
+            index = find(tile_matching, 1 );
+            if isempty(index)
+                tile_filename = "";
+            else
+                tile_filename = strcat(tile_path,'/',obj.tile_index(index));
+            end
 
         end
 
         function obj = get_tiles(obj)
-            %OPENDEM Construct an instance of this class
-                        % get maximum and minimum latitude and longitude
-            lat = [source_poi.lat target_poi.lat];
-            lon = [source_poi.lon target_poi.lon];
+            %GET_TILES private method to get the tiles from POI
+            %   The method will get the tiles that cover the area between the source and target POI, and store them in the object properties
 
-            latmin = floor(min(lat));
-            latmax = floor(max(lat));
-            lonmim = floor(min(lon));
-            lonmax = floor(max(lon));
+            % get reference coordinates and sizes from the POI
+            POI_lat = [obj.source_poi.lat obj.target_poi.lat];
+            POI_lon = [obj.source_poi.lon obj.target_poi.lon];
+
+            latmin = floor(min(POI_lat));
+            latmax = floor(max(POI_lat));
+            lonmim = floor(min(POI_lon));
+            lonmax = floor(max(POI_lon));
             
-            tiles_required = (latmax - latmin + 1) * (lonmax - lonmin + 1);
+            parallel_size = latmax - latmin + 1;
+            meridian_size = lonmax - lonmin + 1;
+            tiles_required = parallel_size * meridian_size;
 
+            % validate if the number of tiles required is within the limit
             if tiles_required > obj.max_tiles
-                error(sprintf("%d tiles required to cover the POI. Maximum number of tiles is %d",tiles_required,obj.max_tiles));
+                error("%d tiles required to cover the POI. Maximum number of tiles is %d",tiles_required,obj.max_tiles);
             end
 
-            % get the tile names
-            tile_set = {};
+            % create a cell array to store the tile names from the object tile index
+            tile_set = cell(parallel_size,meridian_size);
+
             for lat = latmin:1:latmax
                 for lon = lonmin:1:lonmax
-                    tile_name = get_tile_name(lat,lon);
-                    tile_path = obj.tile_index(tile_name);
-                    if ~isfile(tile_path)
-                        error(sprintf("Tile %s not found",tile_name));
-                    end
-                    tile_set{end+1} = tile_path;
+                    iLat = lat - latmin + 1;
+                    iLon = lon - lonmin + 1;
+                    tile_set{iLat,ilon} = get_tile_name(lat,lon);
                 end
             end
 
-            % check if the area covered by the POI is less than 2 degrees
-            if ((latlim(2)-latlim(1)) > 2 || (lonlim(2)-lonlim(1)) > 2)
-                warning("Area covered by the POI is too large");
-                fnc_ok = false;
+            % loop through the tile set until the first tile is found
+            for ilat = 1:parallel_size
+                for ilon = 1:meridian_size
+                    if ~isempty(tile_set{ilat,ilon})
+                        found = true;
+                        break;
+                    end
+                end
+                if found
+                    break;
+                end
             end
 
-            % check if maximum latitude has the same interger part as the minimum latitude
-            if floor(latlim(1)) ~= floor(latlim(2))
-                require_two_parallel_degrees = true;
+            % alocate the memory to the complet tile matrix
+            [Zf,Rf] = readgeoraster(tile_set{ilat,ilon},"OutputType","double");
+            
+            % create a matrix to store the tiles with size equal to the sum of the sizes of the tiles
+            tile_size = size(Zf);
+            obj.Z = zeros(tile_size(1) * parallel_size, tile_size(2) * meridian_size, 'double');
+            Rarray = cell(parallel_size,meridian_size);
+
+            % Copy the tile already loaded to the matrix considering it's position as defined by the ilat and ilon indexes
+            obj.Z{((ilat-1)*tile_size(1))+1:((ilat-1)*tile_size(1))+tile_size(1),((ilon-1)*tile_size(2))+1:((ilon-1)*tile_size(2))+tile_size(2)} = Zf;
+            Rarray{ilat,ilon} = Rf;
+
+            % Keep the loop through to load the remaining tiles
+            for jlat = ilac:parallel_size
+                for jlon = ilon:meridian_size
+                    if isempty(tile_set{jlat,jlon})
+                        continue;
+                    end
+                    [Zf,Rf] = readgeoraster(tile_set{jlat,jlon},"OutputType","double");
+                    obj.Z(((jlat-1)*tile_size(1))+1:((jlat-1)*tile_size(1))+tile_size(1),((jlon-1)*tile_size(2))+1:((jlon-1)*tile_size(2))+tile_size(2)) = Zf;
+                    Rarray{jlat,jlon} = Rf;
+                end
             end
 
-            if floor(lonlim(1)) ~= floor(lonlim(2))
-                require_two_meridian_degrees = true;
-            end
-
-
-            try 
-                [ZNW,RNW] = readgeoraster(NWTile,"OutputType","double");
-                latlimNW = RNW.LatitudeLimits;
-                lonlimNW = RNW.LongitudeLimits;
-            catch
-                error("NW Tile not found");
-            end
-
-            try 
-                [ZSW,RSW] = readgeoraster(SWTile,"OutputType","double");
-                latlimSW = RSW.LatitudeLimits;
-                lonlimSW = RSW.LongitudeLimits;
-            catch
-                error("SW Tile not found");
-            end
-
-            try 
-                [ZNE,RNE] = readgeoraster(NETile,"OutputType","double");
-                latlimNE = RNE.LatitudeLimits;
-                lonlimNE = RNE.LongitudeLimits;
-            catch
-                error("NE Tile not found");
-            end
-
-            try 
-                [ZSE,RSE] = readgeoraster(SETile,"OutputType","double");
-                latlimSE = RSE.LatitudeLimits;
-                lonlimSE = RSE.LongitudeLimits;
-            catch
-                error("SE Tile not found");
-            end
-
-
-            [ZSW,RSW] = readgeoraster(RJtilepath2,"OutputType","double");
-            latlimSW = RSW.LatitudeLimits;
-            lonlimSW = RSW.LongitudeLimits;
-
+            % ! NEED TO MERGE THE Rarray into a single obj.R
         end
     end
 
@@ -197,7 +198,7 @@ classdef openDEM < handle
                     json_index=jsondecode(str);
                     obj.tile_index=extractfield(json_index,'file');
                     
-                    clean_file_names();
+                    cellfun( @(x) clean_file_names(x), obj.tile_index );
 
                 catch
                     error("Json tile index file not found");
