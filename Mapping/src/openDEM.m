@@ -1,12 +1,19 @@
 classdef openDEM < handle
     %UNTITLED Summary of this class goes here
     %   Detailed explanation goes here
-
+    properties (Constant)
+        % Constants
+        MATHWORKS_SERVICE = 1; 
+        TILE_SERVICE = 2;
+        PUBLIC_SERVICE = 3;
+    end
     properties
         method
         tile_index
         source_poi
         target_poi
+        Z
+        R
         NWTile
         SWTile
         NETile
@@ -23,75 +30,56 @@ classdef openDEM < handle
         R
     end
 
-    methods
-        function obj = openDEM(datasource)
-            %OPENDEM Construct an instance of this class
-            %   receive a datasource and load the associated index file
-
-            % check if datasouce is terminated in ".json"
-            if ~endsWith(datasource,".json")
-                method_status = "tile";
-                
-                % Load the index file into the tile index
-                try
-                    str=fileread(datasouce);
-                    obj.tile_index=jsondecode(str);
-                catch
-                    error("Json tile index file not found");
-                end
-                
+    methods (Access = private)
+        function tilename = get_tile_name(obj,lat,lon)
+            %GET_TILE_NAME Summary of this method goes here
+            %   Detailed explanation goes here
+                        % define the hemisfere according to the latitude signal of the minimum latitude
+            if latlim(1) < 0
+                parallel_hemisphere = "S";
             else
-                method_status = "service";
-                error("open-elevation service alternative not implemented yet");
+                parallel_hemisphere = "N";
             end
+
+            % define the meridian according to the longitude signal of the minimum longitude
+            if lonlim(1) < 0
+                meridian_hemisphere = "W";
+            else
+                meridian_hemisphere = "E";
+            end
+
+            % compose a string in the format "PhDDMhEEE", where Ph is the hemisphere, DD is the integer part of the latitude, M is the hemisphere of the meridian, EE is the integer part of the longitude
+            tile_name_segment = sprintf("%s%02d%s%03d",parallel_hemisphere,floor(latlim(2)),meridian_hemisphere,floor(lonlim(1)));
+
+            tile_matching = cellfun( @(x) contains(x,tile_name_segment), tile_file_names );
+            tilename = find(tile_matching, 1 );
+
         end
 
-        function fnc_status = setPOI(obj,source_poi,target_poi)
-            %setPOI Set the source and target points of interest
-            % POI, Point of Interest, is a structure with the following fields:
-            %   - lat: latitude
-            %   - lon: longitude
-            % Tiles will and LOS will be cached using the connecting points from source to target
-
-            % Check if source and target POI are valid
-            arguments
-                obj
-                source_poi struct
-                target_poi struct
-            end
-            
-            % Check if source and target POI are valid
-            if ~isfield(source_poi,"lat") || ~isfield(source_poi,"lon") || ~(length(source_poi) >= 1)
-                error("Invalid source POI");    
-            end
-
-            if ~isfield(target_poi,"lat") || ~isfield(target_poi,"lon") || ~(length(target_poi) >= 1)
-                error("Invalid target POI");    
-            end
-
-            % Set the source and target POI
-            obj.source_poi = source_poi;
-            obj.target_poi = target_poi;
-
-            % get maximum and minimum latitude and longitude
+        function obj = get_tiles(obj)
+            %OPENDEM Construct an instance of this class
+                        % get maximum and minimum latitude and longitude
             lat = [source_poi.lat target_poi.lat];
             lon = [source_poi.lon target_poi.lon];
 
             latlim = [min(lat) max(lat)];
-            lonlim = [min(lon) max(lon];
-
-            if (latlim(2)-latlim(1)) > 2 || (lonlim(2)-lonlim(1)) > 2
-                error("Area covered by the POI is too large");
+            lonlim = [min(lon) max(lon)];
+            
+            % check if the area covered by the POI is less than 2 degrees
+            if ((latlim(2)-latlim(1)) > 2 || (lonlim(2)-lonlim(1)) > 2)
+                warning("Area covered by the POI is too large");
+                fnc_ok = false;
             end
 
-            % Get the NW, SW, NE, SE tiles considering that they are defined in the json file loaded int tile_index considering the following structure:
-            %  [{"file": "data/N00W050_FABDEM_V1-2.tif", "coords": [0.0001388888888889106, 1.000138888888889, -50.00013888888889, -49.00013888888889]}]
-            
-            tile_name_segment = 'N00W05'
-            
-            tile_file_names=extractfield(obj.tile_index,'file');
-            tile_matching = cellfun( @(x) contains(x,tile_name_segment), tile_file_names );
-            tilename = find( match, 1 );
+            % check if maximum latitude has the same interger part as the minimum latitude
+            if floor(latlim(1)) ~= floor(latlim(2))
+                require_two_parallel_degrees = true;
+            end
+
+            if floor(lonlim(1)) ~= floor(lonlim(2))
+                require_two_meridian_degrees = true;
+            end
+
 
             try 
                 [ZNW,RNW] = readgeoraster(NWTile,"OutputType","double");
@@ -130,14 +118,61 @@ classdef openDEM < handle
             latlimSW = RSW.LatitudeLimits;
             lonlimSW = RSW.LongitudeLimits;
 
+        end
+    end
 
-            obj.Property1 = inputArg1 + inputArg2;
+    methods
+        function obj = openDEM(varargin)
+            %OPENDEM Construct an instance of this class
+            %   receive a datasource and load the associated index file
+
+            if nargin == 0
+                obj.method = obj.MATHWORKS_SERVICE;
+            elseif ~endsWith(varargin{1},".json")
+                obj.method = obj.TILE_SERVICE;
+                try
+                    str=fileread(datasouce);
+                    json_index=jsondecode(str);
+                    obj.tile_index=extractfield(obj.json_index,'file');
+                catch
+                    error("Json tile index file not found");
+                end
+            elseif contains(varargin{1},"http")
+                obj.method = obj.PUBLIC_SERVICE;
+                % TODO: implement test of the public service
+            else
+                error("Invalid data source");
+            end
         end
 
-        function outputArg = method1(obj,inputArg)
-            %METHOD1 Summary of this method goes here
-            %   Detailed explanation goes here
-            outputArg = obj.Property1 + inputArg;
+        function fnc_ok = setPOI(obj,source_poi,target_poi)
+            %setPOI Set the source and target points of interest
+            % POI, Point of Interest, is a structure with the following fields:
+            %   - lat: latitude
+            %   - lon: longitude
+            % Tiles will and LOS will be cached using the connecting points from source to target
+
+            % Check if source and target POI are valid
+            arguments
+                obj
+                source_poi struct
+                target_poi struct
+            end
+            
+            if (~isfield(source_poi,"lat") || ~isfield(source_poi,"lon") || ~(length(source_poi) >= 1))
+                warning("Invalid source POI");
+                fnc_ok = false;
+            end
+
+            if (~isfield(target_poi,"lat") || ~isfield(target_poi,"lon") || ~(length(target_poi) >= 1))
+                warning("Invalid target POI");    
+                fnc_ok = false;
+            end
+
+            obj.source_poi = source_poi;
+            obj.target_poi = target_poi;
+
+            fn_ok = true;
         end
     end
 end
