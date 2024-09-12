@@ -9,7 +9,10 @@ classdef openDEM < handle
     end
     properties
         method
+        service_url = "https://fiscalizacao.anatel.gov.br/";
+        tile_path
         tile_index
+        max_tiles = 4;
         source_poi
         target_poi
         Z
@@ -31,6 +34,15 @@ classdef openDEM < handle
     end
 
     methods (Access = private)
+        function obj = clean_file_names(obj)
+            %CLEAN_FILE_NAMES Remove unwanted path from tile file names
+            %   Tiles are supposed to be stored in the same directory of the json index. The path to the directory is not needed in the obj.tile_index va
+            for i = 1:length(obj.tile_index)
+                obj.tile_index{i} = strrep(obj.tile_index{i},'\','/');
+                
+            end
+        end
+        
         function tilename = get_tile_name(obj,lat,lon)
             %GET_TILE_NAME Summary of this method goes here
             %   Detailed explanation goes here
@@ -62,9 +74,30 @@ classdef openDEM < handle
             lat = [source_poi.lat target_poi.lat];
             lon = [source_poi.lon target_poi.lon];
 
-            latlim = [min(lat) max(lat)];
-            lonlim = [min(lon) max(lon)];
+            latmin = floor(min(lat));
+            latmax = floor(max(lat));
+            lonmim = floor(min(lon));
+            lonmax = floor(max(lon));
             
+            tiles_required = (latmax - latmin + 1) * (lonmax - lonmin + 1);
+
+            if tiles_required > obj.max_tiles
+                error(sprintf("%d tiles required to cover the POI. Maximum number of tiles is %d",tiles_required,obj.max_tiles));
+            end
+
+            % get the tile names
+            tile_set = {};
+            for lat = latmin:1:latmax
+                for lon = lonmin:1:lonmax
+                    tile_name = get_tile_name(lat,lon);
+                    tile_path = obj.tile_index(tile_name);
+                    if ~isfile(tile_path)
+                        error(sprintf("Tile %s not found",tile_name));
+                    end
+                    tile_set{end+1} = tile_path;
+                end
+            end
+
             % check if the area covered by the POI is less than 2 degrees
             if ((latlim(2)-latlim(1)) > 2 || (lonlim(2)-lonlim(1)) > 2)
                 warning("Area covered by the POI is too large");
@@ -124,22 +157,54 @@ classdef openDEM < handle
     methods
         function obj = openDEM(varargin)
             %OPENDEM Construct an instance of this class
-            %   receive a datasource and load the associated index file
+            %   Default method is the MathWorks service; if no parameters are passed
+            %   If a JSON file is passed, the tile service is used
+            %   If a URL is passed, the public service is used
+            %   Optional parameters: max_tiles, maximum number of tiles to be cached, default is 4
 
             if nargin == 0
                 obj.method = obj.MATHWORKS_SERVICE;
-            elseif ~endsWith(varargin{1},".json")
+                return;
+            if nargin > 1
+                if rem(nargin, 2) == 0
+                    error("Wrong number of parameters. Optional parameters must come in pairs, with label and value");
+                end
+                i = 2;
+                while i < nargin
+                    switch varargin{i}
+                        case 'max_tiles'
+                            obj.max_tiles = varargin{i + 1};
+                        otherwise
+                            error(strcat("Optional parameter '", varargin{i},"' not recognized"));
+                    end
+                    i = i + 2;
+                end
+            end
+
+            if ~endsWith(varargin{1},".json")
                 obj.method = obj.TILE_SERVICE;
                 try
-                    str=fileread(datasouce);
+                    lastdot_pos = find(YourString == '\', 1, 'last');
+                    if isempty(lastdot_pos)
+                        lastdot_pos = find(YourString == '/', 1, 'last');
+                        if isempty(lastdot_pos)
+                            error("Invalid path to tile json index file. Please provide full path");
+                        end
+                    end
+                    obj.tile_path = YourString(1 : lastdot_pos - 1);
+
+                    str=fileread(varargin{1});
                     json_index=jsondecode(str);
-                    obj.tile_index=extractfield(obj.json_index,'file');
+                    obj.tile_index=extractfield(json_index,'file');
+                    
+                    clean_file_names();
+
                 catch
                     error("Json tile index file not found");
                 end
             elseif contains(varargin{1},"http")
                 obj.method = obj.PUBLIC_SERVICE;
-                % TODO: implement test of the public service
+                % TODO: implement test of the public service before continuing
             else
                 error("Invalid data source");
             end
