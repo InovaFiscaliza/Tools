@@ -23,7 +23,7 @@ classdef openDEM < handle
     end
 
     methods
-        function cleanName = cleanFileName(dirtyName)
+        function cleanName = cleanFileName(obj, dirtyName)
             %CLEAN_FILE_NAMES Remove unwanted path from tile file names
             %   Tiles are supposed to be stored in the same directory of the json index.
             %   The path to the directory is not needed in the obj.tile_index variable
