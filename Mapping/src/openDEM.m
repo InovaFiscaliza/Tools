@@ -17,20 +17,6 @@ classdef openDEM < handle
         target_poi
         Z
         R
-        NWTile
-        SWTile
-        NETile
-        SETile
-        ZNW
-        RNW
-        ZSW
-        RSW
-        ZNE
-        RNE
-        ZSE
-        RSE
-        Z
-        R
     end
 
     methods (Access = private)
@@ -114,7 +100,7 @@ classdef openDEM < handle
                 end
             end
 
-            % loop through the tile set until the first tile is found
+            % loop through the tile set until the first tile is found and load it. Tiles might be missing, specially in costal regions.
             for ilat = 1:parallel_size
                 for ilon = 1:meridian_size
                     if ~isempty(tile_set{ilat,ilon})
@@ -126,11 +112,9 @@ classdef openDEM < handle
                     break;
                 end
             end
-
-            % alocate the memory to the complet tile matrix
             [Zf,Rf] = readgeoraster(tile_set{ilat,ilon},"OutputType","double");
-            
-            % create a matrix to store the tiles with size equal to the sum of the sizes of the tiles
+
+            % Alocate memory for the complete tile matrix
             tile_size = size(Zf);
             obj.Z = zeros(tile_size(1) * parallel_size, tile_size(2) * meridian_size, 'double');
             Rarray = cell(parallel_size,meridian_size);
@@ -139,7 +123,7 @@ classdef openDEM < handle
             obj.Z{((ilat-1)*tile_size(1))+1:((ilat-1)*tile_size(1))+tile_size(1),((ilon-1)*tile_size(2))+1:((ilon-1)*tile_size(2))+tile_size(2)} = Zf;
             Rarray{ilat,ilon} = Rf;
 
-            % Keep the loop through to load the remaining tiles
+            % Continue the loop through tile set and load the remaining tiles into the object
             for jlat = ilac:parallel_size
                 for jlon = ilon:meridian_size
                     if isempty(tile_set{jlat,jlon})
@@ -151,7 +135,15 @@ classdef openDEM < handle
                 end
             end
 
-            % ! NEED TO MERGE THE Rarray into a single obj.R
+            % Calculate the merged georeference for the complete tile matrix
+            latlinN = Rarray{1,1}.LatitudeLimits(2);
+            lonlimW = Rarray{1,1}.LongitudeLimits(1);
+            latlimS = Rarray{parallel_size,1}.LatitudeLimits(1);
+            lonlimE = Rarray{1,meridian_size}.LongitudeLimits(2);
+            mergedlatlim = [latlinS latlimN];
+            mergedlonlim = [lonlimW lonlimE];
+            obj.R = georefpostings(mergedlatlim,mergedlonlim,size(obj.Z));
+            obj.R.GeographicCRS = Rarray{1,1}.GeographicCRS;
         end
     end
 
@@ -214,8 +206,9 @@ classdef openDEM < handle
         function fnc_ok = setPOI(obj,source_poi,target_poi)
             %setPOI Set the source and target points of interest
             % POI, Point of Interest, is a structure with the following fields:
-            %   - lat: latitude
-            %   - lon: longitude
+            %   - id: unique identifier of the POI
+            %   - lat: latitude, in decimal degrees
+            %   - lon: longitude, in decimal degrees
             % Tiles will and LOS will be cached using the connecting points from source to target
 
             % Check if source and target POI are valid
@@ -238,17 +231,44 @@ classdef openDEM < handle
             obj.source_poi = source_poi;
             obj.target_poi = target_poi;
 
-            fn_ok = true;
+            % Get the tiles that cover the area between the source and target POI
+            get_tiles(obj);
+
+            fnc_ok = true;
+        end
+
+        function los_result = los(obj,source_POI_index,target_POI_index)
+            %LOS Line of Sight calculation
+            %   Calculate the Line of Sight between the source and target POI
+            arguments
+                obj
+                % single id for source
+                source_POI_id int32
+                % array of ids for target
+                target_POI_id array
+            end
+
+            % get the source POI data using the id provided
+            source = obj.source_poi(obj.source_poi.id == source_POI_id);
+            if isempty(source_poi)
+                error("Source POI with id %d not found",source_POI_id);
+            end
+
+            % get the target POI data using the id provided in the array
+            target = obj.target_poi(obj.target_poi.id == target_POI_id);
+            if length(target) ~= length(target_POI_id)
+                warning("Some target POI ids not found");
+            end
+
+            los_result = cell(length(target),1);
+
+            for i = 1:length(target)
+                   % calculate the line of sight profile
+                [vis,visprofile,dist,h,lattrk,lontrk] = los2(obj.Z,obj.R,source.lat,source.lon,target(i).lat,target(i).lon);
+
+                los_result{i} = struct('id',target(i).id,'visible',vis,'profile',visprofile,'distance',dist,'height',h,'lat',lattrk,'lon',lontrk);
+            end
+
         end
     end
-end
-
-function [vis,visprofile,dist,h,lattrk,lontrk] = los_from_tiles(tile_set,lat1,lon1,lat2,lon2)
-%LOS_FROM_TILES Expansion of LOS2 function to work with a tile repository
-    
-    % Test if tile set path is accessible
-    [Z,R] = readgeoraster(tile_set,"OutputType","double");
-
-    [vis,visprofile,dist,h,lattrk,lontrk] = los2(Z,R,lat1,lon1,lat2,lon2);
-
 end
