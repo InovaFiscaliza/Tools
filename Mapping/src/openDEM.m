@@ -4,25 +4,72 @@ classdef openDEM < handle
     %   Elevation Models using a tile repository, web services (Open-Elevation) or 
     %   the original MathWorks service.
 
-    properties (Constant)
-        % Constants
+    properties (Constant, Access = private)
+        %-----------------------------------------------------------------%
         MATHWORKS_SERVICE = 1; 
-        TILE_SERVICE = 2;
-        PUBLIC_SERVICE = 3;
+        TILE_SERVICE      = 2;
+        PUBLIC_SERVICE    = 3;
     end
+
+
     properties
+        %-----------------------------------------------------------------%
         method
-        service_url = "https://fiscalizacao.anatel.gov.br/";
+        service_url char = 'https://fiscalizacao.anatel.gov.br/'
         tile_path
         tile_index
-        max_tiles = 4;
+        max_tiles   int16 {mustBePositive, mustBeLessThanOrEqual(max_tiles, 32)} = 4
         source_poi
         target_poi
         Z
         R
     end
 
+
     methods
+        %-----------------------------------------------------------------%
+        function obj = openDEM(varargin)
+            %OPENDEM Construct an instance of this class
+            %   Default method is the MathWorks service; if no parameters are passed
+            %   If a JSON file is passed, the tile service is used
+            %   If a URL is passed, the public service is used
+            %   Optional parameters: max_tiles, maximum number of tiles to be cached, default is 4
+
+            if ~nargin
+                obj.method = obj.MATHWORKS_SERVICE;
+                return;
+            end
+
+            srcData = varargin{1};
+            [srcAddress, ~, srcExt] = fileparts(srcData);
+            switch lower(srcExt)
+                case '.json'
+                    obj.method = obj.TILE_SERVICE;
+                    obj.tile_path = srcAddress;
+
+                    jsonContent = jsondecode(fileread(srcData));
+                    [~, listOfFileName, listOfFileExt] = fileparts({jsonContent.file});
+                    obj.tile_index = strcat(listOfFileName, listOfFileExt);
+
+                otherwise
+                    URL = regexp(srcData, '^http[s]?://[^\s]*', 'match', 'once');
+                    if isempty(URL)
+                        error('openDEM:UnexpectedSourceData', 'Unexpected source data')
+                    end
+
+                    obj.method = obj.PUBLIC_SERVICE;
+                    obj.service_url = URL;
+            end
+
+            if nargin == 2
+                obj.max_tiles = varargin{2};
+            end
+        end
+    end
+
+
+    methods
+        %-----------------------------------------------------------------%
         function cleanName = cleanFileName(dirtyName)
             %CLEAN_FILE_NAMES Remove unwanted path from tile file names
             %   Tiles are supposed to be stored in the same directory of the json index.
@@ -39,6 +86,7 @@ classdef openDEM < handle
             cleanName = extractAfter(dirtyName,lastdot_pos);
         end
         
+        %-----------------------------------------------------------------%
         function tile_filename = get_tile_name(obj,lat,lon)
             %GET_TILE_NAME Get the name of the tile that that contains lat and lon
             %  latitude and longitude must be integers and represente the left bottom corner 
@@ -72,9 +120,9 @@ classdef openDEM < handle
             else
                 tile_filename = strcat(obj.tile_path,'/',obj.tile_index(index));
             end
-
         end
 
+        %-----------------------------------------------------------------%
         function obj = get_tiles(obj)
             %GET_TILES private method to get the tiles from POI
             %   The method will get the tiles that cover the area between the source and target POI, and store them in the object properties
@@ -154,70 +202,7 @@ classdef openDEM < handle
             obj.R.GeographicCRS = Rarray{1,1}.GeographicCRS;
         end
 
-        function obj = openDEM(varargin)
-            %OPENDEM Construct an instance of this class
-            %   Default method is the MathWorks service; if no parameters are passed
-            %   If a JSON file is passed, the tile service is used
-            %   If a URL is passed, the public service is used
-            %   Optional parameters: max_tiles, maximum number of tiles to be cached, default is 4
-
-            % validate arguments
-            if nargin == 0
-                obj.method = obj.MATHWORKS_SERVICE;
-                return;
-            end
-
-            if nargin > 1
-                if rem(nargin, 2) == 0
-                    error("Wrong number of parameters. Optional parameters must come in pairs, with label and value");
-                end
-                i = 2;
-
-                % process optional arguments
-                while i < nargin
-                    switch varargin{i}
-                        case 'max_tiles'
-                            obj.max_tiles = varargin{i + 1};
-                        otherwise
-                            error(strcat("Optional parameter '", varargin{i},"' not recognized"));
-                    end
-                    i = i + 2;
-                end
-            end
-
-            % handle the case where a json index file is provided as argument
-            if endsWith(varargin{1},".json")
-                obj.method = obj.TILE_SERVICE;
-                try
-                    lastdot_pos = find(varargin{1} == '\', 1, 'last');
-                    if isempty(lastdot_pos)
-                        lastdot_pos = find(varargin{1} == '/', 1, 'last');
-                        if isempty(lastdot_pos)
-                            error("Invalid path to tile json index file. Please provide full path");
-                        end
-                    end
-                    obj.tile_path = varargin{1}(1 : lastdot_pos - 1);
-
-                    str=fileread(varargin{1});
-                    json_index=jsondecode(str);
-                    obj.tile_index=extractfield(json_index,'file');
-                    
-                    obj.tile_index = cellfun(@cleanFileName, obj.tile_index);
-
-                catch
-                    error("Json tile index file not found");
-                end
-            % Handle the case where an URL is provided as argument
-            elseif contains(varargin{1},"http")
-                obj.method = obj.PUBLIC_SERVICE;
-                % TODO: Implement test of the public service before continuing
-            % Default, use the mathworks service
-            else
-                obj.method = obj.MATHWORKS_SERVICE;
-                % TODO: Include Mathworks cashing methods
-            end
-        end
-
+        %-----------------------------------------------------------------%
         function fnc_ok = setPOI(obj,source_poi,target_poi)
             %setPOI Set the source and target points of interest
             % POI, Point of Interest, is a structure with the following fields:
@@ -248,9 +233,9 @@ classdef openDEM < handle
             obj.target_poi = target_poi;
 
             get_tiles(obj);
-
         end
 
+        %-----------------------------------------------------------------%
         function los_result = los(obj,source_POI_id,target_POI_id)
             %LOS Line of Sight calculation
             %   Calculate the Line of Sight between the source and target POI
@@ -282,7 +267,6 @@ classdef openDEM < handle
 
                 los_result{i} = struct('id',target(i).id,'visible',vis,'profile',visprofile,'distance',dist,'height',h,'lat',lattrk,'lon',lontrk);
             end
-
         end
     end
 end
