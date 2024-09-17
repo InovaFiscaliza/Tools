@@ -281,16 +281,22 @@ classdef openDEM < handle
             end
 
             % get the source POI data using the id provided
-            source = obj.source_poi(obj.source_poi.id == source_POI_id);
-            if isempty(source)
+            matchingIdx = arrayfun( @(x) x.id == source_POI_id,  obj.source_poi);
+
+            if isempty(matchingIdx)
                 error("Source POI with id %d not found",source_POI_id);
             end
 
+            source = obj.source_poi(matchingIdx);
+
             % get the target POI data using the id provided in the array
-            target = obj.target_poi(obj.target_poi.id == target_POI_id);
-            if length(target) ~= length(target_POI_id)
+            matchingIdx = arrayfun(@(x) ismember(x.id, target_POI_id), obj.target_poi);
+            
+            if length(find(matchingIdx)) ~= length(target_POI_id)
                 warning("Some target POI ids not found");
             end
+
+            target = obj.target_poi(matchingIdx);
 
             los_result = cell(length(target),1);
 
