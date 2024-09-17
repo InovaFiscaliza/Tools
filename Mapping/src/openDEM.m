@@ -4,11 +4,11 @@ classdef openDEM < handle
     %   Elevation Models using a tile repository, web services (Open-Elevation) or 
     %   the original MathWorks service.
 
-    properties (Constant, Access = private)
+    properties (Constant)
         %-----------------------------------------------------------------%
-        MATHWORKS_SERVICE = 1; 
-        TILE_SERVICE      = 2;
-        PUBLIC_SERVICE    = 3;
+        MATHWORKS_METHOD = 1; 
+        TILE_METHOD      = 2;
+        PUBLIC_METHOD    = 3;
     end
 
 
@@ -16,7 +16,8 @@ classdef openDEM < handle
         %-----------------------------------------------------------------%
         method
         service_url char = 'https://fiscalizacao.anatel.gov.br/'
-        tile_path
+        tile_path char = 'not_defined'
+        sep char = filesep
         tile_index
         max_tiles   int16 {mustBePositive, mustBeLessThanOrEqual(max_tiles, 32)} = 4
         source_poi
@@ -36,7 +37,7 @@ classdef openDEM < handle
             %   Optional parameters: max_tiles, maximum number of tiles to be cached, default is 4
 
             if ~nargin
-                obj.method = obj.MATHWORKS_SERVICE;
+                obj.method = obj.MATHWORKS_METHOD;
                 return;
             end
 
@@ -44,11 +45,28 @@ classdef openDEM < handle
             [srcAddress, ~, srcExt] = fileparts(srcData);
             switch lower(srcExt)
                 case '.json'
-                    obj.method = obj.TILE_SERVICE;
+                    obj.method = obj.TILE_METHOD;
                     obj.tile_path = srcAddress;
 
-                    jsonContent = jsondecode(fileread(srcData));
-                    [~, listOfFileName, listOfFileExt] = fileparts({jsonContent.file});
+                    % use objet specifc separator to allow for the use of
+                    % web(http) or volume repository independent of platform
+                    if contains(obj.tile_path,'/')
+                        obj.sep = '/';
+                    else
+                        obj.sep = '\';
+                    end
+                
+                    try
+                        fileData = fileread(srcData);
+                    catch
+                        error('File not found');
+                    end
+                    try
+                        [~, listOfFileName, listOfFileExt] = fileparts({jsondecode(fileData).file});
+                    catch
+                        error('%s file not in a recognized json format',srcData);
+                    end
+
                     obj.tile_index = strcat(listOfFileName, listOfFileExt);
 
                 otherwise
@@ -57,7 +75,7 @@ classdef openDEM < handle
                         error('openDEM:UnexpectedSourceData', 'Unexpected source data')
                     end
 
-                    obj.method = obj.PUBLIC_SERVICE;
+                    obj.method = obj.PUBLIC_METHOD;
                     obj.service_url = URL;
             end
 
@@ -69,22 +87,6 @@ classdef openDEM < handle
 
 
     methods
-        %-----------------------------------------------------------------%
-        function cleanName = cleanFileName(dirtyName)
-            %CLEAN_FILE_NAMES Remove unwanted path from tile file names
-            %   Tiles are supposed to be stored in the same directory of the json index.
-            %   The path to the directory is not needed in the obj.tile_index variable
-            
-            lastdot_pos = find(dirtyName == '\', 1, 'last');
-            if isempty(lastdot_pos)
-                lastdot_pos = find(dirtyName == '/', 1, 'last');
-                if isempty(lastdot_pos)
-                    cleanName = dirtyName;
-                    return;
-                end
-            end
-            cleanName = extractAfter(dirtyName,lastdot_pos);
-        end
         
         %-----------------------------------------------------------------%
         function tile_filename = get_tile_name(obj,lat,lon)
@@ -109,7 +111,7 @@ classdef openDEM < handle
                 meridian_hemisphere = "E";
             end
 
-            tile_name_segment = sprintf("%s%02d%s%03d",parallel_hemisphere,lat,meridian_hemisphere,lon);
+            tile_name_segment = sprintf("%s%02d%s%03d",parallel_hemisphere,abs(lat),meridian_hemisphere,abs(lon));
 
             % search for the tile name in the tile index and return the full name
             tile_matching = cellfun( @(x) contains(x,tile_name_segment), obj.tile_index );
@@ -118,7 +120,7 @@ classdef openDEM < handle
             if isempty(index)
                 tile_filename = "";
             else
-                tile_filename = strcat(obj.tile_path,'/',obj.tile_index(index));
+                tile_filename = strcat(obj.tile_path,obj.sep,obj.tile_index(index));
             end
         end
 
@@ -150,9 +152,9 @@ classdef openDEM < handle
 
             for lat = latmin:1:latmax
                 for lon = lonmin:1:lonmax
-                    ilat = lat - latmin + 1;
+                    ilat = latmax - lat + 1;
                     ilon = lon - lonmin + 1;
-                    tile_set{ilat,ilon} = get_tile_name(lat,lon);
+                    tile_set{ilat,ilon} = get_tile_name(obj,lat,lon);
                 end
             end
 
@@ -173,33 +175,64 @@ classdef openDEM < handle
             % Alocate memory for the complete tile matrix
             tile_size = size(Zf);
             obj.Z = zeros(tile_size(1) * parallel_size, tile_size(2) * meridian_size, 'double');
-            Rarray = cell(parallel_size,meridian_size);
 
             % Copy the tile already loaded to the matrix considering it's position as defined by the ilat and ilon indexes
-            obj.Z{((ilat-1)*tile_size(1))+1:((ilat-1)*tile_size(1))+tile_size(1),((ilon-1)*tile_size(2))+1:((ilon-1)*tile_size(2))+tile_size(2)} = Zf;
-            Rarray{ilat,ilon} = Rf;
+            latMinIndex = @(x) ((x-1)*tile_size(1))+1;
+            latMaxIndex = @(x) ((x-1)*tile_size(1))+tile_size(1);
+            lonMinIndex = @(x) ((x-1)*tile_size(2))+1;
+            lonMaxIndex = @(x) ((x-1)*tile_size(2))+tile_size(2);
 
-            % Continue the loop through tile set and load the remaining tiles into the object
-            for jlat = ilac:parallel_size
-                for jlon = ilon:meridian_size
+            obj.Z(latMinIndex(ilat):latMaxIndex(ilat),lonMinIndex(ilon):lonMaxIndex(ilon)) = Zf;
+
+            % Create array to store latitude and longitude limits using the
+            % limits of the first found tile.
+            latLimits = repmat(Rf.LatitudeLimits,1,tiles_required);
+            lonLimits = repmat(Rf.LongitudeLimits,1,tiles_required);
+
+            % Initialize indexes of tile array to continue from the first
+            % non empty tile
+            limitArrayIndex = 3;
+            jlat = ilat;
+            jlon = ilon + 1;
+            if jlon > meridian_size
+                jlon = 1;
+                jlat = ilat +1;
+            end
+
+            while jlat <= parallel_size
+                while jlon <= meridian_size
                     if isempty(tile_set{jlat,jlon})
                         continue;
                     end
-                    [Zf,Rf] = readgeoraster(tile_set{jlat,jlon},"OutputType","double");
-                    obj.Z(((jlat-1)*tile_size(1))+1:((jlat-1)*tile_size(1))+tile_size(1),((jlon-1)*tile_size(2))+1:((jlon-1)*tile_size(2))+tile_size(2)) = Zf;
-                    Rarray{jlat,jlon} = Rf;
+
+                    [Zf,Rs] = readgeoraster(tile_set{jlat,jlon},"OutputType","double");
+                    obj.Z(latMinIndex(jlat):latMaxIndex(jlat),lonMinIndex(jlon):lonMaxIndex(jlon)) = Zf;
+                    latLimits(limitArrayIndex:limitArrayIndex+1) = Rs.LatitudeLimits;
+                    lonLimits(limitArrayIndex:limitArrayIndex+1) = Rs.LongitudeLimits;
+
+                    jlon = jlon + 1;
+                    limitArrayIndex = limitArrayIndex + 2;
                 end
+                jlon = 1;
+                jlat = jlat + 1;
             end
 
             % Calculate the merged georeference for the complete tile matrix
-            latlimN = Rarray{1,1}.LatitudeLimits(2);
-            lonlimW = Rarray{1,1}.LongitudeLimits(1);
-            latlimS = Rarray{parallel_size,1}.LatitudeLimits(1);
-            lonlimE = Rarray{1,meridian_size}.LongitudeLimits(2);
+            latlimN = max(latLimits);
+            latlimS = min(latLimits);
+            lonlimE = max(lonLimits);
+            lonlimW = min(lonLimits);
+            
             mergedlatlim = [latlimS latlimN];
             mergedlonlim = [lonlimW lonlimE];
             obj.R = georefpostings(mergedlatlim,mergedlonlim,size(obj.Z));
-            obj.R.GeographicCRS = Rarray{1,1}.GeographicCRS;
+            
+            % Copy remaining characteristics from the reference tile
+            obj.R.ColumnsStartFrom = Rf.ColumnsStartFrom;
+            obj.R.RowsStartFrom = Rf.RowsStartFrom;
+            obj.R.SampleSpacingInLatitude = Rf.SampleSpacingInLatitude;
+            obj.R.SampleSpacingInLongitude = Rf.SampleSpacingInLongitude;
+            obj.R.GeographicCRS = Rf.GeographicCRS;
         end
 
         %-----------------------------------------------------------------%
@@ -244,7 +277,7 @@ classdef openDEM < handle
                 % single id for source
                 source_POI_id int32
                 % array of ids for target
-                target_POI_id array
+                target_POI_id int32
             end
 
             % get the source POI data using the id provided
