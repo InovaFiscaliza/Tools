@@ -1,0 +1,20 @@
+{
+    "check period in seconds":30,
+    "clean period in hours":24,
+    "last clean":"2021-09-30 15:00:00",
+    "folders":{
+        "root":"D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test",
+        "post":"post/Regulatron",
+        "temp":"temp/Regulatron",
+        "trash":"trash/Regulatron",
+        "screenshots":"get/Regulatron/Screenshots"},
+    "catalog":"get/Regulatron/Anuncios.xlsx",
+    "log":{
+        "level":"INFO",
+        "screen output":true,
+        "file output":true,
+        "file path":"get/Regulatron/log.txt"},
+    "columns":{
+        "in":["nome", "preço", "avaliações", "nota", "imagem", "url", "data", "palavra_busca", "página_de_busca", "certificado", "características", "descrição", "ean_gtin", "estado", "estoque", "imagens", "fabricante", "modelo", "product_id", "vendas", "vendedor", "screenshot", "indice", "subcategoria", "nome_sch", "fabricante_sch", "modelo_sch", "tipo_sch", "nome_score", "modelo_score", "passível?", "probabilidade", "marketplace"],
+        "out":["nome", "preço", "avaliações", "nota", "imagem", "url", "data", "palavra_busca", "página_de_busca", "certificado", "características", "descrição", "ean_gtin", "estado", "estoque", "imagens", "fabricante", "modelo", "product_id", "vendas", "vendedor", "screenshot", "indice", "subcategoria", "nome_sch", "fabricante_sch", "modelo_sch", "tipo_sch", "nome_score", "modelo_score", "passível?", "probabilidade", "marketplace", "status_screenshot"]}
+}

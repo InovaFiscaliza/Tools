@@ -1,0 +1,39 @@
+2024-10-29 11:50:55,151 | Regulatron Catalog | INFO | Starting file catalog script... (file_catalog.py:223)
+Starting file catalog script...
+Starting file catalog script...
+Starting file catalog script...
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file amazon_smartphones_cautelar_pages_20241022_154611.xlsx
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file amazon_smartphones_pages_20241022_144907.xlsx
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file amazon_smartphone_pages_20241022_133415.xlsx
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file amazon_smartphone_pages_20241022_140858.xlsx
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file amazon_smartphone_pages_20241022_155859.xlsx
+Starting file catalog script...
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file amazon_smartphones_cautelar_pages_20241022_154611.xlsx
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file amazon_smartphones_pages_20241022_144907.xlsx
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file amazon_smartphone_pages_20241022_133415.xlsx
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file amazon_smartphone_pages_20241022_140858.xlsx
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file amazon_smartphone_pages_20241022_155859.xlsx
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file 1da2feb0-d7b0-4fe3-9f75-143159e3b382.pdf
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file 65791a16-f4e4-4b57-bd8c-f1e4ea07341d.pdf
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file 9fb32e1e-504b-4d8a-88cd-2cdc073de81a.pdf
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file d3969249-5489-4059-95a3-bd5b9d07dbd5.pdf
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file ef4157f9-8ac2-4a20-be84-a6d7137e43e3.pdf
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file f0030e28-2d2a-4cd8-8879-a71a12201e4b.pdf
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file f008a0b7-2b5a-4ccf-8c82-63c981d9ea6f.pdf
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file f0b05ac2-411d-4c29-abbf-d3b8975f0f25.pdf
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file f115979a-4022-41df-9d2d-fc9ad3cf2732.pdf
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file f1943a5a-bf76-4d59-b524-964d6b05b89c.pdf
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file f3694247-005e-464e-a71c-4a9f2e04f336.pdf
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file f36b6d4c-e0f6-46cd-9704-9a1ba5c685f3.pdf
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file f452dd65-736f-4bbb-9819-ff264622b621.pdf
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file f4e95261-7d94-456e-b6f7-44aaa1ea065a.pdf
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file f55f9b10-b58b-4369-97a8-abbb072adca9.pdf
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file f67a3961-509c-49b6-bfdd-a80ecd8c6f82.pdf
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file f7f08921-3e1c-4419-9070-51674bf29ffb.pdf
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file f9bf5124-e617-4b68-abeb-640a94eda0e4.pdf
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file fa2005d0-b2c2-4579-b985-6dc9bfe96b8d.pdf
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file fa499213-db10-4177-ac9c-3022b3d6f265.pdf
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file fa990239-7e96-4feb-b9f5-75912e25eb5f.pdf
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file fb08c358-29cf-4d12-97c5-832564c10bc2.pdf
+Moved to D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test\temp/Regulatron the file fc421048-241c-4303-9885-c454163fa100.pdf
+Removed folder screenshots
