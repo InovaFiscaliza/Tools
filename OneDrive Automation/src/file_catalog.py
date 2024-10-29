@@ -469,7 +469,6 @@ def main():
         
         xlsx_to_process, pdf_to_process = get_files_to_process()
         
-        
         if xlsx_to_process:
             reference_df = process_xlsx_files(xlsx_to_process)
             need_to_persist = True
