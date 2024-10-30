@@ -14,6 +14,7 @@ Raises:
 """
 
 import logging
+import sys
 import coloredlogs
 
 import signal
@@ -73,7 +74,7 @@ class Config:
         self.log_screen = self.raw["log"]["screen output"]
         self.log_file = self.raw["log"]["file output"]
         self.log_filename = os.path.join(self.raw["folders"]["root"], self.raw["log"]["file path"])
-        self.columns_in = self.raw["columns"]["in"]
+        self.columns_in = sorted(self.raw["columns"]["in"])
         self.columns_out = self.raw["columns"]["out"]
         self.check_period = self.raw["check period in seconds"]
         self.clean_period = self.raw["clean period in hours"]
@@ -192,15 +193,19 @@ def start_logging() -> bool:
     """Start the logging system with the configuration values from the config file and updating global variables.
 
     Returns:
-        bool: True if the logging system was started successfully.
+        bool: True if the logging system started successfully.
     """
     global log
     global config
     
+    log = logging.getLogger('Regulatron Catalog')
+    
+    # Drop all existing handlers
+    if log.hasHandlers():
+        log.handlers.clear()
+        
     coloredlogs.install()
     coloredlogs.ColoredFormatter(fmt='\x1b[32m%(asctime)s\x1b[0m | \x1b[35m%(hostname)s\x1b[0m | \x1b[34m%(name)s[%(process)d]\x1b[0m | \x1b[1;30m%(levelname)s | \x1b[0m %(message)s')
-
-    log = logging.getLogger('Regulatron Catalog')
     
     match config.log_level:
         case 'DEBUG':
@@ -217,23 +222,49 @@ def start_logging() -> bool:
             log.setLevel(logging.INFO)            
 
     if config.log_screen:
-        ch = logging.StreamHandler()
+        ch = logging.StreamHandler(stream=sys.stdout)
         log.addHandler(ch)
     
     if config.log_file:
         fh = logging.FileHandler(config.log_filename)
-        log.addHandler(fh)    
+        # set the logging format with same fields as the coloredlogs
+        formatter = logging.Formatter("%(asctime)s | %(module)s: %(funcName)s:%(lineno)d | %(name)s[%(process)d] | %(levelname)s | %(message)s")
+        fh.setFormatter(formatter)
+        log.addHandler(fh)
     
     log.info("Starting file catalog script...")
 
     return True
 
 # --------------------------------------------------------------
+def move_to_temp(file: str) -> str:
+    """Move a file to the temp folder and return the new path.
+
+    Args:
+        file (str): File to move.
+
+    Returns:
+        str: New path of the file in the temp folder.
+    """
+    
+    global log
+    global config
+    
+    filename = os.path.basename(file)
+    try:
+        shutil.move(file, config.temp)
+        log.info(f"Moved to {config.temp} the file {filename}")
+        return os.path.join(config.temp, filename)
+    except Exception as e:
+        log.error(f"Error moving {file} to temp folder: {e}")
+        return file
+
+# --------------------------------------------------------------
 def sort_files_into_lists(  folder_content: list[str],
                             move: bool = True,
-                            xlsx_to_process: list[str] = [],
-                            pdf_to_process: list[str] = [],
-                            subfolders: list[str] = []) -> tuple[list[str], list[str], list[str]]:
+                            xlsx_to_process: list[str] = None,
+                            pdf_to_process: list[str] = None,
+                            subfolders: list[str] = None) -> tuple[list[str], list[str], list[str]]:
     """Sort files in the provided listo into list of xlsx and pdf files to process and subfolders to remove.
 
     Args:
@@ -249,32 +280,39 @@ def sort_files_into_lists(  folder_content: list[str],
     
     global log
     global config
+
+    # Initialize lists if they are None
+    if xlsx_to_process is None:
+        xlsx_to_process = []
+    if pdf_to_process is None:
+        pdf_to_process = []
+    if subfolders is None:
+        subfolders = []
         
     for item in folder_content:
         
         # Check if the item is a file
         if os.path.isfile(item):
             
-            # Check if the file is a new .xlsx file
-            if item.endswith('.xlsx'):
-                # Move new files to the temp folder
-                if move:
-                    shutil.move(item, config.temp)
-                    log.info(f"Moved to {config.temp} the file {item}")
+            # Classify the file by extension
+            _, ext = os.path.splitext(item)
+            match ext:
+                
+                case '.xlsx':
+                    if move:                        
+                        item = move_to_temp(item)
 
-                xlsx_to_process.append(item)
+                    xlsx_to_process.append(item)
+                    
+                case '.pdf':
+                    if move:
+                        item = move_to_temp(item)
+                    
+                    pdf_to_process.append(item)
                 
-            # else if file is pdf
-            elif item.endswith('.pdf'):
-                if move:
-                    shutil.move(item, config.temp)
-                    log.info(f"Moved to {config.temp} the file {item}")
-                
-                pdf_to_process.append(item)
-                
-            else:
-                shutil.move(item, config.trash)
-                log.warning(f"Moved to {config.trash} the file {item}")
+                case _:
+                    shutil.move(item, config.trash)
+                    log.warning(f"Moved to {config.trash} the file {item}")
         else:
             subfolders.append(item)
             
@@ -377,7 +415,7 @@ def clean_post_folder() -> None:
             log.info(f"Removed folder {folder}")
 
 # --------------------------------------------------------------
-def process_xlsx_files(xlsx_to_process) -> pd.DataFrame:
+def process_xlsx_files(xlsx_to_process: list[str]) -> pd.DataFrame:
     """Process the list of xlsx files and update the reference data file.
 
     Args:
@@ -390,25 +428,29 @@ def process_xlsx_files(xlsx_to_process) -> pd.DataFrame:
     global config
     
     reference_df = pd.read_excel(config.catalog)
-    reference_df.set_index("screenshot", inplace=True)            
+    reference_df.set_index("screenshot", inplace=True)
 
     for file in xlsx_to_process:
-        new_data_df = pd.read_excel(os.path.join(config.temp, file))
+        new_data_df = pd.read_excel(file)
 
         # test if new_data_df has the columns as defined in the config file
-        if new_data_df.columns.tolist() != config.columns_in:
+        if sorted(new_data_df.columns.tolist()) != config.columns_in:
             log.error(f"Columns in {file} do not match the expected columns.")
-            shutil.move(os.path.join(config.temp, file), config.trash)
+            shutil.move(file, config.trash)
             continue
 
         new_data_df.set_index("screenshot", inplace=True)
 
+        # update the reference data with the new data where index matches
+        reference_df.update(new_data_df)
+        
+        # add new_data_df rows where index does not match
         reference_df = reference_df.combine_first(new_data_df)
 
-    return reference_df
+    persist_reference(reference_df)
 
 # --------------------------------------------------------------
-def process_pdf_files(pdf_to_process, reference_df) -> None:
+def process_pdf_files(pdf_to_process: list[str]) -> None:
     """Process the list of pdf files and update the reference data file.
 
     Args:
@@ -417,14 +459,21 @@ def process_pdf_files(pdf_to_process, reference_df) -> None:
         log (logging.Logger): Logger object.
     """
     global log
+    global config
+        
+    reference_df = pd.read_excel(config.catalog)
+    reference_df.set_index("screenshot", inplace=True)
     
-    for file in pdf_to_process:
-        if file in reference_df.index:
-            reference_df.at[file, "status_screenshot"] = 1
+    for item in pdf_to_process:
+        filename = os.path.basename(item)
+        if filename in reference_df.index:
+            reference_df.at[filename, "status_screenshot"] = 1
         else:
             # if file is not present in the reference_df, just do nothing and wait for it to appear later.
-            log.info(f"{file} not found in the reference data.")
+            log.info(f"{filename} not found in the reference data.")
 
+    persist_reference(reference_df)
+    
 # --------------------------------------------------------------
 def persist_reference(reference_df: pd.DataFrame) -> None:
     """Persist the reference DataFrame to the catalog file.
@@ -435,13 +484,16 @@ def persist_reference(reference_df: pd.DataFrame) -> None:
     global log
     global config
 
+    # reorder columns to match the config file
+    reference_df = reference_df[config.columns_out]
+    
     try:
         reference_df.to_excel(config.catalog, index=False)
         log.info(f"Reference data file updated: {config.catalog}")
     except Exception as e:
         log.error(f"Error saving reference data: {e}")
 
-
+# --------------------------------------------------------------
 def clean_old_files() -> None:
     """Check if it's time to clean the post folder and update the last clean time in the config file."""
     global config
@@ -452,6 +504,7 @@ def clean_old_files() -> None:
 
 # --------------------------------------------------------------
 # Main function
+# --------------------------------------------------------------
 def main():
     """Main function"""
     
@@ -462,27 +515,25 @@ def main():
     
     start_logging()
     
-    # keep thread running until a crtl+C or kill command is received
+    # keep thread running until a crtl+C or kill command is received, even if an error occurs
     while keep_watching:
         
-        need_to_persist = False
+        try:
+            xlsx_to_process, pdf_to_process = get_files_to_process()
+            
+            if xlsx_to_process:
+                process_xlsx_files(xlsx_to_process)
+                    
+            if pdf_to_process:
+                process_pdf_files(pdf_to_process)
+            
+            clean_old_files()
+            
+            time.sleep(config.check_period)
         
-        xlsx_to_process, pdf_to_process = get_files_to_process()
-        
-        if xlsx_to_process:
-            reference_df = process_xlsx_files(xlsx_to_process)
-            need_to_persist = True
-                
-        if pdf_to_process:
-            process_pdf_files(pdf_to_process, reference_df)
-            need_to_persist = True
-
-        if need_to_persist:
-            persist_reference(reference_df)
-        
-        clean_old_files()
-        
-        time.sleep(config.check_period)
+        except Exception as e:
+            log.error(f"Error in main loop: {e}")
+            continue
 
 if __name__ == "__main__":
     main()
