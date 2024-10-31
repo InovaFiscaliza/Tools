@@ -1,7 +1,7 @@
 <details>
     <summary>Table of Contents</summary>
     <ol>
-        <li><a href="#about-Mapping">About Mapping</a></li>
+        <li><a href="#About-File-Sorter">About File Sorter</a></li>
         <li><a href="#Scripts_and_Files">Algorithm Overview</a></li>
         <li><a href="#setup">Setup</a></li>
         <li><a href="#roadmap">Roadmap</a></li>
@@ -10,22 +10,48 @@
     </ol>
 </details>
 
-# About Mapping
+# About Simple File Cataloger
 
-This is a set of scripts that perform file manipulation to prepare geotiff files for tiling and publishing in a web server.
+This script monitor at regular intervals an input folder (post), consolidating metadata from files in XLSX format and moving files to an output folder (get).
+
+Incoming files in XLSX format containing metadata are posted by users using a sync application (onedrive).
+
+Files in XLSX format contain metadata associated with PDF files, that are placed in the same folder or subfolders.
+
+Data in XLSX format is consolidate into a single file.
+
+Using one column as key, rows might be updated.
+
+The consolidated metadata is published as a XLSX file at an output folder (get)
+
+PDF files associated with rows in the consolidated XLSX are also moved to a subfolder branching from the output path.
+
+Rows in the consolidated XLSX are marked to indicate if the associated PDF is present or not in the output publish folder.
+
+While processing, files are moved to a temporary folder (temp) to avoid changes by users.
+
+After processing, files are moved to a backup folder (store) to keep track of changes.
+
+If file are found to be not compatible with the script, they are moved to a trash folder (trash).
+
+PDF files that are not associated with any row in the consolidated XLSX are also moved to a trash folder (trash) after a period of time.
+
+Script is made to run as a service continuously, looking for files at regular intervals and cleaning the input and temp folders regularly.
+
+To stop, the script monitor the occurrence of kill signal from the system or ctrl+c if running in the terminal.
+
+A log file is also generated to keep track of the script execution, being also possible to have the log presented in the terminal.
+
+<p align="right">(<a href="#indexerd-md-top">back to top</a>)</p>
 
 ## Scripts and Files
 
 | Script module | Description |
 | --- | --- |
-| [name_paths.ps1](./src/name_path.ps1) | Change file names to include prefix according to folder structure. Used tho harmonize names with the ones used for tiling. e.g. file .\map\df\map.tif becomes .\map\df\df_map.tif |
-| [sort_files.ps1](./src/sort_files.ps1) | Organize files into foldes according to naming templates |
-| [remove_empty_folders.ps1](./src/remove_empty_folders.ps1) | Remove empty folders from file three |
-| [check_files.py](./src/check_files.py) | Check if all files are present in the folder structure. Used to check if all files are present before tiling |
-| [degree_tile_split.py](./src/degree_tile_split.py) | Split a set of source geotiff files containing regions of no data values, e.g. valid data only within a state political boundry, into a set of regular tiles spawning the complete dataset, e.g convert multiple state maps into a national map tile grid  |
-| [get_nodata_value.py](./src/get_nodata_value.py) | get the value used to represent no data in a geotiff |
-| [clean_tiles.py](./src/clean_tiles.py) | merge overlapping tiles and delete empty tiles from a list of geotiff files. |
+| [config.json](./src/config.json) | get the value used to represent no data in a geotiff |
+| [file_catalog.py](./src/file_catalog.py) | merge overlapping tiles and delete empty tiles from a list of geotiff files. |
 | [environment.yml](./src/environment.yml) | Conda environment to run the geoprocessing scripts. Core includes OSWGeo GDAL and Python |
+| 
 
 
 <p align="right">(<a href="#indexerd-md-top">back to top</a>)</p>
@@ -45,16 +71,17 @@ create the environment
 Activate the environment
 
 ```powershell
-conda activate map
+conda activate regulatron-catalog
 ```
 
+Create the expected folder structure. You may use the test example in the [test](./test) folder.
+
+Configure the script by editing the [config.json](./src/config.json) file.
 
 Call the desired script, for example
 
 ```powershell
-(map).\name_paths.ps1
-(map) python check_files.py
-
+(regulatron-catalog).\python file_catalog.py
 ```
 
 # Roadmap
@@ -63,8 +90,7 @@ This section presents a simplified view of the roadmap and knwon issues.
 
 For more details, see the [open issues](https://github.com/FSLobao/RF.Fusion/issues)
 
-* [ ] Test geo naming convention with OpenElevation
-* [ ] Include tile size parameter to create smaller tiles and optimize server performance
+* [ ] Configure service and update documentation
   
 <p align="right">(<a href="#indexerd-md-top">back to top</a>)</p>
 
