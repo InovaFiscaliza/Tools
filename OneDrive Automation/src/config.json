@@ -3,7 +3,7 @@
     "clean period in hours": 24,
     "last clean": "2024-10-30 13:24:47",
     "folders": {
-        "root": "D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test",
+        "root": "D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/test/root",
         "post": "post/Regulatron",
         "temp": "temp/Regulatron",
         "trash": "trash/Regulatron",
