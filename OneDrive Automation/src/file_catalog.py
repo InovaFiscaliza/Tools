@@ -51,6 +51,7 @@ class Config:
                     "post":"post/Regulatron",
                     "temp":"temp/Regulatron",
                     "trash":"trash/Regulatron",
+                    "store":"store/Regulatron",
                     "screenshots":"get/Regulatron/Screenshots"},
                 "catalog":"get/Regulatron/Anuncios.xlsx",
                 "log":{
@@ -60,7 +61,8 @@ class Config:
                     "file path":"get/Regulatron/log.txt"},
                     "columns":{
                         "in":["nome", "preço", "avaliações", "nota", "imagem", "url", "data", "palavra_busca", "página_de_busca", "certificado", "características", "descrição", "ean_gtin", "estado", "estoque", "imagens", "fabricante", "modelo", "product_id", "vendas", "vendedor", "screenshot", "indice", "subcategoria", "nome_sch", "fabricante_sch", "modelo_sch", "tipo_sch", "nome_score", "modelo_score", "passível?", "probabilidade", "marketplace"],
-                        "out":["nome", "preço", "avaliações", "nota", "imagem", "url", "data", "palavra_busca", "página_de_busca", "certificado", "características", "descrição", "ean_gtin", "estado", "estoque", "imagens", "fabricante", "modelo", "product_id", "vendas", "vendedor", "screenshot", "indice", "subcategoria", "nome_sch", "fabricante_sch", "modelo_sch", "tipo_sch", "nome_score", "modelo_score", "passível?", "probabilidade", "marketplace", "status_screenshot"]}
+                        "out":["nome", "preço", "avaliações", "nota", "imagem", "url", "data", "palavra_busca", "página_de_busca", "certificado", "características", "descrição", "ean_gtin", "estado", "estoque", "imagens", "fabricante", "modelo", "product_id", "vendas", "vendedor", "screenshot", "indice", "subcategoria", "nome_sch", "fabricante_sch", "modelo_sch", "tipo_sch", "nome_score", "modelo_score", "passível?", "probabilidade", "marketplace", "status_screenshot"],
+                        "key":"screenshot"},
             }
         """
         self.load_config()
@@ -70,6 +72,7 @@ class Config:
         self.trash = os.path.join(self.raw["folders"]["root"], self.raw["folders"]["trash"])
         self.screenshots = os.path.join(self.raw["folders"]["root"], self.raw["folders"]["screenshots"])
         self.catalog = os.path.join(self.raw["folders"]["root"], self.raw["catalog"])
+        self.store = os.path.join(self.raw["folders"]["root"], self.raw["folders"]["store"])
         self.log_level = self.raw["log"]["level"]
         self.log_screen = self.raw["log"]["screen output"]
         self.log_file = self.raw["log"]["file output"]
@@ -202,12 +205,9 @@ def start_logging() -> bool:
     log = logging.getLogger('Regulatron Catalog')
     
     # Drop all existing handlers
-    if log.hasHandlers():
-        log.handlers.clear()
-        
-    coloredlogs.install()
-    coloredlogs.ColoredFormatter(fmt='\x1b[32m%(asctime)s\x1b[0m | \x1b[35m%(hostname)s\x1b[0m | \x1b[34m%(name)s[%(process)d]\x1b[0m | \x1b[1;30m%(levelname)s | \x1b[0m %(message)s')
-    
+    log.handlers.clear()
+    log.propagate = False
+            
     match config.log_level:
         case 'DEBUG':
             log.setLevel(logging.DEBUG)
@@ -221,16 +221,20 @@ def start_logging() -> bool:
             log.setLevel(logging.CRITICAL)
         case _:
             log.setLevel(logging.INFO)            
-
+    
     if config.log_screen:
+        coloredlogs.install()
+        screen_formatter = coloredlogs.ColoredFormatter(fmt='\x1b[32m%(asctime)s\x1b[0m | \x1b[35m%(module)s: %(funcName)s:%(lineno)d\x1b[0m | \x1b[34m%(name)s[%(process)d]\x1b[0m | \x1b[30m%(levelname)s | \x1b[0m %(message)s')
+                
         ch = logging.StreamHandler(stream=sys.stdout)
+        ch.setFormatter(screen_formatter)
         log.addHandler(ch)
     
     if config.log_file:
         fh = logging.FileHandler(config.log_filename)
         # set the logging format with same fields as the coloredlogs
-        formatter = logging.Formatter("%(asctime)s | %(module)s: %(funcName)s:%(lineno)d | %(name)s[%(process)d] | %(levelname)s | %(message)s")
-        fh.setFormatter(formatter)
+        file_formatter = logging.Formatter("%(asctime)s | %(module)s: %(funcName)s:%(lineno)d | %(name)s[%(process)d] | %(levelname)s | %(message)s")
+        fh.setFormatter(file_formatter)
         log.addHandler(fh)
     
     log.info("Starting file catalog script...")
@@ -259,6 +263,62 @@ def move_to_temp(file: str) -> str:
     except Exception as e:
         log.error(f"Error moving {file} to temp folder: {e}")
         return file
+
+# --------------------------------------------------------------
+def trash_it(file: str) -> None:
+    """Move a file to the trash folder.
+
+    Args:
+        file (str): File to move to the trash folder.
+    """
+    
+    global log
+    global config
+    
+    filename = os.path.basename(file)
+    try:
+        shutil.move(file, config.trash)
+        log.info(f"Moved to {config.trash} the file {filename}")
+    except Exception as e:
+        log.error(f"Error moving {file} to trash folder: {e}")
+        
+# --------------------------------------------------------------
+def move_to_store(file: str) -> None:
+    """Move a file to the store folder.
+
+    Args:
+        file (str): File to move to the store folder.
+    """
+    
+    global log
+    global config
+    
+    filename = os.path.basename(file)
+    try:
+        shutil.move(file, config.store)
+        log.info(f"Moved to {config.store} the file {filename}")
+    except Exception as e:
+        log.error(f"Error moving {file} to store folder: {e}")
+
+# --------------------------------------------------------------
+def publish(file: str) -> bool:
+    """Publish a file to the screenshots folder.
+
+    Args:
+        file (str): File to publish to the screenshots folder.
+    """
+    
+    global log
+    global config
+    
+    filename = os.path.basename(file)
+    try:
+        shutil.move(file, config.screenshots)
+        log.info(f"Published to {config.screenshots} the file {filename}")
+        return True
+    except Exception as e:
+        log.error(f"Error publishing {file} to screenshots folder: {e}")
+        return False
 
 # --------------------------------------------------------------
 def sort_files_into_lists(  folder_content: list[str],
@@ -311,9 +371,8 @@ def sort_files_into_lists(  folder_content: list[str],
                     
                     pdf_to_process.append(item)
                 
-                case _:
-                    shutil.move(item, config.trash)
-                    log.warning(f"Moved to {config.trash} the file {item}")
+                case _: 
+                    trash_it(item)
         else:
             subfolders.append(item)
             
@@ -379,41 +438,43 @@ def get_files_to_process() -> tuple[list[str], list[str]]:
     return xlsx_to_process, pdf_to_process
 
 # --------------------------------------------------------------
-def clean_post_folder() -> None:
+def clean_old_in_folder(folder: str) -> None:
     """Move all files older than the clean period in hours from the post folder to the trash folder."""
     
     global log
     global config
 
     # Get content from folder
-    folder_content = glob.glob("**", root_dir=config.post, recursive=True)
+    folder_content = glob.glob("**", root_dir=folder, recursive=True)
     
     if not folder_content:
-        log.info("Nothing to clean in the post folder.")
+        log.info(f"Nothing to clean in {folder}.")
         return
     
     folder_to_remove = []
     
     for item in folder_content:
             
+            item_name = os.path.join(folder, item)
             # Check if the item is a file
-            if os.path.isfile(os.path.join(config.post, item)):
+            if os.path.isfile(item_name):
                 
                 # Check if the file is older than the clean period
                 if pd.to_datetime(os.path.getctime(os.path.join(config.post, item)), unit='s') < pd.to_datetime("now") - pd.Timedelta(hours=config.clean_period):
-                    # Move old files to the trash folder
-                    shutil.move(os.path.join(config.post, item), config.trash)
-                    log.info(f"Moved to {config.trash} the file {item}")
+                    trash_it(item_name)
             else:
-                # Check if the folder is empty
-                if not os.listdir(os.path.join(config.post, item)):
-                    folder_to_remove.append(item)
+                folder_to_remove.append(item)
 
-    # Remove empty subfolders after moving files. New files that may have appered in the subfolders will be processed in the next run
+    # Remove empty subfolders after moving files. 
     if folder_to_remove:
-        for folder in folder_to_remove:
-            os.rmdir(os.path.join(config.post, folder))
-            log.info(f"Removed folder {folder}")
+        for item in folder_to_remove:
+            # New files that may have appeared in the subfolders will be processed in the next run, so test if it is empty before removing
+            if not os.listdir(item):
+                try:
+                    os.rmdir(item)
+                    log.info(f"Removed folder {item}")
+                except Exception as e:
+                    log.warning(f"Error removing folder {item}: {e}")
 
 # --------------------------------------------------------------
 def read_excel(file: str) -> pd.DataFrame:
@@ -438,6 +499,7 @@ def read_excel(file: str) -> pd.DataFrame:
         df_from_file.set_index(config.columns_key, inplace=True)
     except Exception as e:
         log.error(f"Error setting index in reference data: {e}")
+        pass
 
     return df_from_file
 
@@ -454,7 +516,10 @@ def valid_data(df: pd.DataFrame) -> bool:
     global log
     global config
     
-    if sorted(df.columns) != config.columns_in:
+    df_columns = df.columns.tolist()
+    df_columns.append(df.index.name)
+
+    if sorted(df_columns) != config.columns_in:
         return False
     
     return True
@@ -473,21 +538,12 @@ def process_xlsx_files(xlsx_to_process: list[str]) -> pd.DataFrame:
     global config
     
     reference_df = read_excel(config.catalog)
-    reference_changed = False
     
-
     for file in xlsx_to_process:
         new_data_df = read_excel(file)
 
         if not valid_data(new_data_df):
-            log.error(f"Invalid data in {file}.")
-                    # test if new_data_df has the columns as defined in the config file
-            try:
-                shutil.move(file, config.trash)
-                log.warning(f"Moved to {config.trash} the file {file}")
-            except Exception as e:
-                log.error(f"Error moving {file} to trash folder: {e}")
-                
+            trash_it(file)
             continue
         
         # update the reference data with the new data where index matches
@@ -496,10 +552,9 @@ def process_xlsx_files(xlsx_to_process: list[str]) -> pd.DataFrame:
         # add new_data_df rows where index does not match
         reference_df = reference_df.combine_first(new_data_df)
         
-        reference_changed = True
-
-    if reference_changed:
         persist_reference(reference_df)
+        
+        move_to_store(file)
 
 # --------------------------------------------------------------
 def process_pdf_files(pdf_to_process: list[str]) -> None:
@@ -514,20 +569,18 @@ def process_pdf_files(pdf_to_process: list[str]) -> None:
     global config
         
     reference_df = read_excel(config.catalog)
-    reference_changed = False
     
     for item in pdf_to_process:
         filename = os.path.basename(item)
         if filename in reference_df.index:
             reference_df.at[filename, "status_screenshot"] = 1
-            reference_changed = True
+            if publish(item):
+                persist_reference(reference_df)
             
         else:
             # if file is not present in the reference_df, just do nothing and wait for it to appear later.
             log.info(f"{filename} not found in the reference data.")
 
-    if reference_changed:
-        persist_reference(reference_df)
     
 # --------------------------------------------------------------
 def persist_reference(reference_df: pd.DataFrame) -> None:
@@ -539,7 +592,9 @@ def persist_reference(reference_df: pd.DataFrame) -> None:
     global log
     global config
 
-    # reorder columns to match the config file
+    # change index column to a regular column
+    reference_df.reset_index(inplace=True)
+    # reorder columns to match order defined the config file as columns_out
     reference_df = reference_df[config.columns_out]
     
     try:
@@ -549,12 +604,13 @@ def persist_reference(reference_df: pd.DataFrame) -> None:
         log.error(f"Error saving reference data: {e}")
 
 # --------------------------------------------------------------
-def clean_old_files() -> None:
+def clean_folders() -> None:
     """Check if it's time to clean the post folder and update the last clean time in the config file."""
     global config
 
     if pd.to_datetime("now") - config.last_clean > pd.Timedelta(hours=config.clean_period):
-        clean_post_folder()
+        clean_old_in_folder(config.post)
+        clean_old_in_folder(config.temp)
         config.set_last_clean()
 
 # --------------------------------------------------------------
@@ -582,7 +638,7 @@ def main():
             if pdf_to_process:
                 process_pdf_files(pdf_to_process)
             
-            clean_old_files()
+            clean_folders()
             
             time.sleep(config.check_period)
         

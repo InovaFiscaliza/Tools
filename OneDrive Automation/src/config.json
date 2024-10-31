@@ -7,6 +7,7 @@
         "post": "post/Regulatron",
         "temp": "temp/Regulatron",
         "trash": "trash/Regulatron",
+        "store": "store/Regulatron",
         "screenshots": "get/Regulatron/Screenshots"
     },
     "catalog": "get/Regulatron/Anuncios.xlsx",
