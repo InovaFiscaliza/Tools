@@ -87,6 +87,7 @@
             "probabilidade",
             "marketplace",
             "status_screenshot"
-        ]
+        ],
+        "key": "screenshot"
     }
 }

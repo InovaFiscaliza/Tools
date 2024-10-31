@@ -76,6 +76,7 @@ class Config:
         self.log_filename = os.path.join(self.raw["folders"]["root"], self.raw["log"]["file path"])
         self.columns_in = sorted(self.raw["columns"]["in"])
         self.columns_out = self.raw["columns"]["out"]
+        self.columns_key = self.raw["columns"]["key"]
         self.check_period = self.raw["check period in seconds"]
         self.clean_period = self.raw["clean period in hours"]
         self.last_clean = pd.to_datetime(self.raw["last clean"], format="%Y-%m-%d %H:%M:%S")
@@ -415,6 +416,50 @@ def clean_post_folder() -> None:
             log.info(f"Removed folder {folder}")
 
 # --------------------------------------------------------------
+def read_excel(file: str) -> pd.DataFrame:
+    """Read an Excel file and return a DataFrame.
+
+    Args:
+        file (str): Excel file to read.
+
+    Returns:
+        pd.DataFrame: DataFrame with the Excel data.
+    """
+    global log
+    global config
+    
+    try:
+        df_from_file = pd.read_excel(file)
+    except Exception as e:
+        log.error(f"Error reading Excel file {file}: {e}")
+        return pd.DataFrame()
+    
+    try:
+        df_from_file.set_index(config.columns_key, inplace=True)
+    except Exception as e:
+        log.error(f"Error setting index in reference data: {e}")
+
+    return df_from_file
+
+# --------------------------------------------------------------
+def valid_data(df: pd.DataFrame) -> bool:
+    """Validate the data in the DataFrame.
+
+    Args:
+        df (pd.DataFrame): DataFrame to validate.
+
+    Returns:
+        bool: True if the data is valid.
+    """
+    global log
+    global config
+    
+    if sorted(df.columns) != config.columns_in:
+        return False
+    
+    return True
+
+# --------------------------------------------------------------
 def process_xlsx_files(xlsx_to_process: list[str]) -> pd.DataFrame:
     """Process the list of xlsx files and update the reference data file.
 
@@ -427,27 +472,34 @@ def process_xlsx_files(xlsx_to_process: list[str]) -> pd.DataFrame:
     global log
     global config
     
-    reference_df = pd.read_excel(config.catalog)
-    reference_df.set_index("screenshot", inplace=True)
+    reference_df = read_excel(config.catalog)
+    reference_changed = False
+    
 
     for file in xlsx_to_process:
-        new_data_df = pd.read_excel(file)
+        new_data_df = read_excel(file)
 
-        # test if new_data_df has the columns as defined in the config file
-        if sorted(new_data_df.columns.tolist()) != config.columns_in:
-            log.error(f"Columns in {file} do not match the expected columns.")
-            shutil.move(file, config.trash)
+        if not valid_data(new_data_df):
+            log.error(f"Invalid data in {file}.")
+                    # test if new_data_df has the columns as defined in the config file
+            try:
+                shutil.move(file, config.trash)
+                log.warning(f"Moved to {config.trash} the file {file}")
+            except Exception as e:
+                log.error(f"Error moving {file} to trash folder: {e}")
+                
             continue
-
-        new_data_df.set_index("screenshot", inplace=True)
-
+        
         # update the reference data with the new data where index matches
         reference_df.update(new_data_df)
         
         # add new_data_df rows where index does not match
         reference_df = reference_df.combine_first(new_data_df)
+        
+        reference_changed = True
 
-    persist_reference(reference_df)
+    if reference_changed:
+        persist_reference(reference_df)
 
 # --------------------------------------------------------------
 def process_pdf_files(pdf_to_process: list[str]) -> None:
@@ -461,18 +513,21 @@ def process_pdf_files(pdf_to_process: list[str]) -> None:
     global log
     global config
         
-    reference_df = pd.read_excel(config.catalog)
-    reference_df.set_index("screenshot", inplace=True)
+    reference_df = read_excel(config.catalog)
+    reference_changed = False
     
     for item in pdf_to_process:
         filename = os.path.basename(item)
         if filename in reference_df.index:
             reference_df.at[filename, "status_screenshot"] = 1
+            reference_changed = True
+            
         else:
             # if file is not present in the reference_df, just do nothing and wait for it to appear later.
             log.info(f"{filename} not found in the reference data.")
 
-    persist_reference(reference_df)
+    if reference_changed:
+        persist_reference(reference_df)
     
 # --------------------------------------------------------------
 def persist_reference(reference_df: pd.DataFrame) -> None:
