@@ -1,7 +1,8 @@
 {
     "check period in seconds": 30,
     "clean period in hours": 24,
-    "last clean": "2024-10-30 13:24:47",
+    "last clean": "2024-11-04 09:26:42",
+    "overwrite data in trash": true,
     "folders": {
         "root": "D:/Documents/Anatel/Aplicativos/GitHub/Tools/FileCataloger/test/root",
         "post": "post/Regulatron",
@@ -15,7 +16,23 @@
         "level": "INFO",
         "screen output": true,
         "file output": true,
-        "file path": "get/Regulatron/log.txt"
+        "file path": "get/Regulatron/log.txt",
+        "format": [
+            "%(asctime)s",
+            "%(module)s: %(funcName)s:%(lineno)d",
+            "%(name)s[%(process)d]",
+            "%(levelname)s",
+            "%(message)s"
+        ],
+        "colour sequence": [
+            "32m",
+            "35m",
+            "34m",
+            "30m",
+            "0m"
+        ],
+        "separator": " | ",
+        "overwrite log in trash": false
     },
     "columns": {
         "in": [

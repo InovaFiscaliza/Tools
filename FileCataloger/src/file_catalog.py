@@ -3,7 +3,8 @@
 Check files in a folder and update a catalog file with new data.
 Keep folders clean by moving old files to a trash folder.
 Move files from post folder to get folder
-This module will not stop execution on file errors, except on startup. It will log the error and continue.
+This module will not stop execution on errors except at startup, if log can't be started and key folders and files can't be accessed
+Log file is emptied on startup. Any existing log file is moved to the trash folder.
 
 Args (stdin): ctrl+c will soft stop the process similar to kill command or systemd stop <service>. kill -9 will hard stop.
 
@@ -29,7 +30,7 @@ import pandas as pd
 import time
 
 # Global Constants
-CONFIG_FILE = "D:/Documents/Anatel/Aplicativos/GitHub/Tools/OneDrive Automation/src/config.json"
+CONFIG_FILE = "D:/Documents/Anatel/Aplicativos/GitHub/Tools/FileCataloger/src/config.json"
 
 # Global variables
 config = None
@@ -46,6 +47,7 @@ class Config:
                 "check period in seconds":5,
                 "clean period in hours":24,
                 "last clean":"2021-09-30 15:00:00",
+                "overwrite data in trash": true,
                 "folders":{
                     "root":"D:/OneDrive",
                     "post":"post/Regulatron",
@@ -58,37 +60,52 @@ class Config:
                     "level":"INFO",
                     "screen output":true,
                     "file output":true,
-                    "file path":"get/Regulatron/log.txt"},
-                    "columns":{
-                        "in":["nome", "preço", "avaliações", "nota", "imagem", "url", "data", "palavra_busca", "página_de_busca", "certificado", "características", "descrição", "ean_gtin", "estado", "estoque", "imagens", "fabricante", "modelo", "product_id", "vendas", "vendedor", "screenshot", "indice", "subcategoria", "nome_sch", "fabricante_sch", "modelo_sch", "tipo_sch", "nome_score", "modelo_score", "passível?", "probabilidade", "marketplace"],
-                        "out":["nome", "preço", "avaliações", "nota", "imagem", "url", "data", "palavra_busca", "página_de_busca", "certificado", "características", "descrição", "ean_gtin", "estado", "estoque", "imagens", "fabricante", "modelo", "product_id", "vendas", "vendedor", "screenshot", "indice", "subcategoria", "nome_sch", "fabricante_sch", "modelo_sch", "tipo_sch", "nome_score", "modelo_score", "passível?", "probabilidade", "marketplace", "status_screenshot"],
-                        "key":"screenshot"},
+                    "file path":"get/Regulatron/log.txt",
+                    "separator": " | ",
+                    "overwrite log in trash": false},
+                "columns":{
+                    "in":["nome", "preço", "avaliações", "nota", "imagem", "url", "data", "palavra_busca", "página_de_busca", "certificado", "características", "descrição", "ean_gtin", "estado", "estoque", "imagens", "fabricante", "modelo", "product_id", "vendas", "vendedor", "screenshot", "indice", "subcategoria", "nome_sch", "fabricante_sch", "modelo_sch", "tipo_sch", "nome_score", "modelo_score", "passível?", "probabilidade", "marketplace"],
+                    "out":["nome", "preço", "avaliações", "nota", "imagem", "url", "data", "palavra_busca", "página_de_busca", "certificado", "características", "descrição", "ean_gtin", "estado", "estoque", "imagens", "fabricante", "modelo", "product_id", "vendas", "vendedor", "screenshot", "indice", "subcategoria", "nome_sch", "fabricante_sch", "modelo_sch", "tipo_sch", "nome_score", "modelo_score", "passível?", "probabilidade", "marketplace", "status_screenshot"],
+                    "key":"screenshot"},
+                    
             }
         """
-        self.load_config()
+        self.__load_config__()
         
         self.post = os.path.join(self.raw["folders"]["root"], self.raw["folders"]["post"])
         self.temp = os.path.join(self.raw["folders"]["root"], self.raw["folders"]["temp"])
         self.trash = os.path.join(self.raw["folders"]["root"], self.raw["folders"]["trash"])
         self.screenshots = os.path.join(self.raw["folders"]["root"], self.raw["folders"]["screenshots"])
-        self.catalog = os.path.join(self.raw["folders"]["root"], self.raw["catalog"])
         self.store = os.path.join(self.raw["folders"]["root"], self.raw["folders"]["store"])
+        
+        self.catalog = os.path.join(self.raw["folders"]["root"], self.raw["catalog"])
+        
         self.log_level = self.raw["log"]["level"]
         self.log_screen = self.raw["log"]["screen output"]
         self.log_file = self.raw["log"]["file output"]
         self.log_filename = os.path.join(self.raw["folders"]["root"], self.raw["log"]["file path"])
+        self.log_separator = self.raw["log"]["separator"]
+        self.log_file_format = self.__log_format_plain__()
+        self.log_screen_format = self.__log_format_colour__()
+        self.log_title = self.__log_titles__()
+        self.log_overwrite = self.raw["log"]["overwrite log in trash"]
+        
         self.columns_in = sorted(self.raw["columns"]["in"])
         self.columns_out = self.raw["columns"]["out"]
         self.columns_key = self.raw["columns"]["key"]
+        
         self.check_period = self.raw["check period in seconds"]
         self.clean_period = self.raw["clean period in hours"]
+        
         self.last_clean = pd.to_datetime(self.raw["last clean"], format="%Y-%m-%d %H:%M:%S")
+        
+        self.data_overwrite = self.raw["overwrite data in trash"]
         
         if not self.is_config_ok():
             exit(1)
-    
+
     # --------------------------------------------------------------
-    def load_config(self) -> None:
+    def __load_config__(self) -> None:
         """Load the configuration values from a JSON file encoded with UTF-8.
         """
         
@@ -102,10 +119,64 @@ class Config:
             exit(1)
     
     # --------------------------------------------------------------
-    def reload(self) -> None:
-        """Reload the configuration values from the JSON file."""
-        self.__init__()
+    def __log_format_colour__(self) -> str:
+        """Return the log format string.
 
+        Returns:
+            str: Log format string.
+        """
+        
+        output_format = ""
+        colour_format = self.raw["log"]["colour sequence"]
+        colour_count = 0
+        colour_set = '\x1b['
+        separator = f"{colour_set}0m{self.log_separator}"
+        for item in self.raw["log"]["format"]:
+            output_format = f"{output_format}{colour_set}{colour_format[colour_count]}{item}{separator}"
+            colour_count += 1
+            if colour_count == len(colour_format):
+                colour_count = 0
+        
+        return output_format[:-len(self.raw['log']['separator'])]
+
+    # --------------------------------------------------------------
+    def __log_format_plain__(self) -> str:
+        """Return the log format string.
+
+        Returns:
+            str: Log format string.
+        """
+        
+        output_format = ""
+        for item in self.raw["log"]["format"]:
+            output_format = f"{output_format}{item}{self.log_separator}"
+        
+        return output_format[:-len(self.log_separator)]
+
+    # --------------------------------------------------------------
+    def __log_titles__(self) -> str:
+        """Return the log column titles as a string.
+        
+            "%(asctime)s" result title = "asctime"
+            "%(module)s: %(funcName)s:%(lineno)d" result title = "module: funcName:lineno"
+            "%(name)s[%(process)d]" result title = "name [process]"
+            "%(levelname)s" result title = "levelname"
+            "%(message)s" result title = "message"
+
+        Returns:
+            str: Log titles string.
+        """
+        
+        non_title = ["%(", ")s", ")d"]
+        output_format = ""
+        for item in self.raw["log"]["format"]:
+
+            for non in non_title:
+                item = item.replace(non, "")
+            
+            output_format = f"{output_format}{item}{self.raw['log']['separator']}"
+        
+        return output_format[:-len(self.raw['log']['separator'])]
     # --------------------------------------------------------------
     def set_last_clean(self) -> None:
         """Write current datetime to JSON file."""
@@ -128,6 +199,10 @@ class Config:
         
         if not os.path.exists(self.post):
             print(f"Post folder not found: {self.post}")
+            return False
+        
+        if not os.path.exists(self.store):
+            print(f"Store folder not found: {self.store}")
             return False
         
         if not os.path.exists(self.temp):
@@ -188,10 +263,6 @@ def sigint_handler(signal=None, frame=None) -> None:
     log.critical(f"Ctrl+C received at: {current_function}()")
     process_status["running"] = False
 
-# Register the signal handler function, to handle system kill commands
-signal.signal(signal.SIGTERM, sigterm_handler)
-signal.signal(signal.SIGINT, sigint_handler)
-
 # --------------------------------------------------------------
 def start_logging() -> bool:
     """Start the logging system with the configuration values from the config file and updating global variables.
@@ -223,17 +294,25 @@ def start_logging() -> bool:
             log.setLevel(logging.INFO)            
     
     if config.log_screen:
+        
+        terminal_width = shutil.get_terminal_size().columns
+        print(f"\n{'~' * terminal_width}")
+        print(config.log_title)
+        
         coloredlogs.install()
-        screen_formatter = coloredlogs.ColoredFormatter(fmt='\x1b[32m%(asctime)s\x1b[0m | \x1b[35m%(module)s: %(funcName)s:%(lineno)d\x1b[0m | \x1b[34m%(name)s[%(process)d]\x1b[0m | \x1b[30m%(levelname)s | \x1b[0m %(message)s')
-                
+        screen_formatter = coloredlogs.ColoredFormatter(fmt=config.log_screen_format)
         ch = logging.StreamHandler(stream=sys.stdout)
         ch.setFormatter(screen_formatter)
         log.addHandler(ch)
     
     if config.log_file:
+        
+        trash_it(config.log_filename, overwrite_trash=config.log_overwrite)
+        with open(config.log_filename, 'w') as log_file:
+            log_file.write(config.log_title + "\n")
+        
         fh = logging.FileHandler(config.log_filename)
-        # set the logging format with same fields as the coloredlogs
-        file_formatter = logging.Formatter("%(asctime)s | %(module)s: %(funcName)s:%(lineno)d | %(name)s[%(process)d] | %(levelname)s | %(message)s")
+        file_formatter = logging.Formatter(fmt=config.log_file_format)
         fh.setFormatter(file_formatter)
         log.addHandler(fh)
     
@@ -243,7 +322,7 @@ def start_logging() -> bool:
 
 # --------------------------------------------------------------
 def move_to_temp(file: str) -> str:
-    """Move a file to the temp folder and return the new path.
+    """Move a file to the temp folder, return the new path, resetting the file timestamp for the current time and log the event.
 
     Args:
         file (str): File to move.
@@ -258,6 +337,7 @@ def move_to_temp(file: str) -> str:
     filename = os.path.basename(file)
     try:
         shutil.move(file, config.temp)
+        os.utime(os.path.join(config.temp, filename))
         log.info(f"Moved to {config.temp} the file {filename}")
         return os.path.join(config.temp, filename)
     except Exception as e:
@@ -265,26 +345,49 @@ def move_to_temp(file: str) -> str:
         return file
 
 # --------------------------------------------------------------
-def trash_it(file: str) -> None:
-    """Move a file to the trash folder.
+def trash_it(file: str, overwrite_trash:bool) -> None:
+    """Move a file to the trash folder, resetting the file timestamp for the current time and log the event.
 
     Args:
         file (str): File to move to the trash folder.
+        overwrite_trash (bool): True if the file should be overwritten in the trash folder.
     """
     
     global log
     global config
     
     filename = os.path.basename(file)
+    trashed_file = os.path.join(config.trash, filename)
+    
+    if overwrite_trash:
+        try:
+            os.remove(trashed_file)
+        except FileNotFoundError:
+            pass                
+        except Exception as e:
+            log.error(f"Error removing {filename} from trash folder: {e}")
+    else:
+        if os.path.exists(trashed_file):
+            trashed_filename, ext = os.path.splitext(filename)
+            timestamp = pd.to_datetime("now").strftime('%Y%m%d_%H%M%S')
+            trashed_filename = f"{trashed_filename}_{timestamp}{ext}"
+            new_trashed_file = os.path.join(config.trash, trashed_filename)
+            try:
+                os.rename(trashed_file, new_trashed_file)
+                log.info(f"Renamed {filename} to {trashed_filename} in trash.")
+            except Exception as e:
+                log.error(f"Error renaming {filename} in trash folder: {e}")
+
     try:
         shutil.move(file, config.trash)
+        os.utime(trashed_file) # force the file timestamp to the current time to avoid being cleaned by the clean process before the clean period is over
         log.info(f"Moved to {config.trash} the file {filename}")
     except Exception as e:
         log.error(f"Error moving {file} to trash folder: {e}")
         
 # --------------------------------------------------------------
 def move_to_store(file: str) -> None:
-    """Move a file to the store folder.
+    """Move a file to the store folder, resetting the file timestamp for the current time and log the event.
 
     Args:
         file (str): File to move to the store folder.
@@ -296,6 +399,7 @@ def move_to_store(file: str) -> None:
     filename = os.path.basename(file)
     try:
         shutil.move(file, config.store)
+        os.utime(os.path.join(config.store, filename)) # force the file timestamp to the current time to avoid being cleaned by the clean process before the clean period is over
         log.info(f"Moved to {config.store} the file {filename}")
     except Exception as e:
         log.error(f"Error moving {file} to store folder: {e}")
@@ -372,7 +476,7 @@ def sort_files_into_lists(  folder_content: list[str],
                     pdf_to_process.append(item)
                 
                 case _: 
-                    trash_it(item)
+                    trash_it(item, overwrite_trash=config.data_overwrite)
         else:
             subfolders.append(item)
             
@@ -414,10 +518,11 @@ def get_files_to_process() -> tuple[list[str], list[str]]:
     folder_content = glob.glob("**", root_dir=config.temp, recursive=True)
     
     if not folder_content:
-        log.info("Nothing forgotten in the temp folder.")
+        log.info("TEMP Folder is empty.")
     else:
         # add path to filenames
         folder_content = list(map(lambda x: os.path.join(config.temp, x), folder_content))
+        log.info(f"TEMP Folder has {len(folder_content)} files/folders to process.")
 
     xlsx_to_process, pdf_to_process, subfolders = sort_files_into_lists(folder_content, move=False)
     
@@ -425,10 +530,11 @@ def get_files_to_process() -> tuple[list[str], list[str]]:
     folder_content = glob.glob("**", root_dir=config.post, recursive=True)
     
     if not folder_content:
-        log.info("Nothing new in the post folder.")
+        log.info("POST Folder is empty.")
     else:
         # add path to filenames
         folder_content = list(map(lambda x: os.path.join(config.post, x), folder_content))
+        log.info(f"POST Folder has {len(folder_content)} files/folders to process.")
         
     xlsx_to_process, pdf_to_process, subfolders = sort_files_into_lists(folder_content, xlsx_to_process=xlsx_to_process, pdf_to_process=pdf_to_process, subfolders=subfolders)
             
@@ -460,8 +566,8 @@ def clean_old_in_folder(folder: str) -> None:
             if os.path.isfile(item_name):
                 
                 # Check if the file is older than the clean period
-                if pd.to_datetime(os.path.getctime(os.path.join(config.post, item)), unit='s') < pd.to_datetime("now") - pd.Timedelta(hours=config.clean_period):
-                    trash_it(item_name)
+                if pd.to_datetime(os.path.getctime(item_name), unit='s') < pd.to_datetime("now") - pd.Timedelta(hours=config.clean_period):
+                    trash_it(item_name, overwrite_trash=config.data_overwrite)
             else:
                 folder_to_remove.append(item)
 
@@ -489,6 +595,10 @@ def read_excel(file: str) -> pd.DataFrame:
     global log
     global config
     
+    # ! DEBUG
+    if file == "amazon_smartphone_pages_20241022_140858.xlsx":
+        print("DEBUG")
+        
     try:
         df_from_file = pd.read_excel(file)
     except Exception as e:
@@ -543,7 +653,7 @@ def process_xlsx_files(xlsx_to_process: list[str]) -> pd.DataFrame:
         new_data_df = read_excel(file)
 
         if not valid_data(new_data_df):
-            trash_it(file)
+            trash_it(file, overwrite_trash=config.data_overwrite)
             continue
         
         # update the reference data with the new data where index matches
@@ -592,8 +702,12 @@ def persist_reference(reference_df: pd.DataFrame) -> None:
     global log
     global config
 
-    # change index column to a regular column
+    # Make a copy of the DataFrame to avoid modifying the original
+    reference_df = reference_df.copy()
+    
+    # change index column to a regular column so it is exported to the Excel file
     reference_df.reset_index(inplace=True)
+    
     # reorder columns to match order defined the config file as columns_out
     reference_df = reference_df[config.columns_out]
     
@@ -616,6 +730,11 @@ def clean_folders() -> None:
 # --------------------------------------------------------------
 # Main function
 # --------------------------------------------------------------
+
+# Register the signal handler function, to handle system kill commands
+signal.signal(signal.SIGTERM, sigterm_handler)
+signal.signal(signal.SIGINT, sigint_handler)
+
 def main():
     """Main function"""
     
@@ -643,7 +762,7 @@ def main():
             time.sleep(config.check_period)
         
         except Exception as e:
-            log.error(f"Error in main loop: {e}")
+            log.exception(f"Error in main loop: {e}")
             continue
 
 if __name__ == "__main__":
