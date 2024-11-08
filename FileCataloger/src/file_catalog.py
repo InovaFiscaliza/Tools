@@ -30,7 +30,7 @@ import pandas as pd
 import time
 
 # Global Constants
-CONFIG_FILE = "D:/Documents/Anatel/Aplicativos/GitHub/Tools/FileCataloger/src/config.json"
+CONFIG_FILE = "C:/ProgramData/Anatel/FileCataloger/config.json"
 
 # Global variables
 config = None
@@ -256,12 +256,12 @@ def sigterm_handler(signal=None, frame=None) -> None:
 def sigint_handler(signal=None, frame=None) -> None:
     """Signal handler for SIGINT (Ctrl+C) to stop the process."""
 
-    global process_status
+    global keep_watching
     global log
 
     current_function = inspect.currentframe().f_back.f_code.co_name
     log.critical(f"Ctrl+C received at: {current_function}()")
-    process_status["running"] = False
+    keep_watching = False
 
 # --------------------------------------------------------------
 def start_logging() -> bool:
@@ -595,10 +595,6 @@ def read_excel(file: str) -> pd.DataFrame:
     global log
     global config
     
-    # ! DEBUG
-    if file == "amazon_smartphone_pages_20241022_140858.xlsx":
-        print("DEBUG")
-        
     try:
         df_from_file = pd.read_excel(file)
     except Exception as e:
@@ -765,5 +761,7 @@ def main():
             log.exception(f"Error in main loop: {e}")
             continue
 
+    log.info("File catalog script stopped.")
+    
 if __name__ == "__main__":
     main()
