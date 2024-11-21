@@ -71,7 +71,7 @@ $condaExecutable = [System.IO.Path]::Combine($MINICONDA_PATH, "Scripts\conda.exe
 
 # Create the Conda environment within the install directory
 Write-Output "Creating Conda environment..."
-& $condaPath create --name $ENV_NAME --file $downloadDir\environment.yml -y
+& $condaExecutable create --name $ENV_NAME --file $downloadDir\environment.yml -y
 
 # Verify environment creation (last command output is stored in $?)
 if (-not $?) {

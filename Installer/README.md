@@ -1,7 +1,7 @@
 <details>
     <summary>Table of Contents</summary>
     <ol>
-        <li><a href="#about-Mapping">About Mapping</a></li>
+        <li><a href="#about-Installer">About Installer</a></li>
         <li><a href="#Scripts_and_Files">Algorithm Overview</a></li>
         <li><a href="#setup">Setup</a></li>
         <li><a href="#roadmap">Roadmap</a></li>
@@ -10,21 +10,31 @@
     </ol>
 </details>
 
-# About Tools
+# About Installer
 
-This repository contains a set of scripts that perform various auxiliary data processing tasks related to other projects within INOVAFISCALIZA.
+Installer is a simple and general installer script for Windows.
 
-# Main Projects
-
-| Script module | Description |
-| --- | --- |
-| [FileCataloger](./FileCataloger/README.md) | A script to be used as a background service to consolidate information from multiple XLSX files into a single file. |
-| [Installer](./Installer/README.md) | A simple and general installer script for Windows. It may be used to check environment variables, download install software, and create shortcuts for easier deployment of applications. |
-| [Mapping](./Mapping/README.md) | Tools for file manipulation in powershell and tiling of multiple large geotiff datatasets into a single reference grid |
-
+It may be used to check environment variables, download install software, and create shortcuts for easier deployment of applications.
 
 <p align="right">(<a href="#indexerd-md-top">back to top</a>)</p>
 
+
+# Setup
+
+Adjust variables in the script to match the desired software and paths.
+
+Run the script in a Windows machine.
+
+# Roadmap
+
+This section presents a simplified view of the roadmap and knwon issues.
+
+For more details, see the [open issues](https://github.com/FSLobao/RF.Fusion/issues)
+
+* [x] Develop basic installer script in bat
+* [ ] Create a portable installer executable for offline installation
+  
+<p align="right">(<a href="#indexerd-md-top">back to top</a>)</p>
 
 <!-- CONTRIBUTING -->
 # Contributing
@@ -57,7 +67,6 @@ Further reading material can be found at:
 <!-- ACKNOWLEDGMENTS -->
 ## References
 
-* [Open Source Initiative](https://opensource.org/licenses)
-* [GNU General Public License](https://www.gnu.org/licenses/gpl-3.0.html)
-  
+* [doc](https://docs.github.com/en/github/writing-on-github/basic-writing-and-formatting-syntax)
+
 <p align="right">(<a href="#indexerd-md-top">back to top</a>)</p>
